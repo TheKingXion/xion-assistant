@@ -16,6 +16,9 @@ pnpm build
 - Memory isolation user A/B.
 - Voice settings isolation user A/B.
 - High risk communication remains pending confirmation.
+- Confirming a message action records confirmation but does not fake external connector execution.
+- Plans are readable by owner only.
+- Memory update/delete requires owning `user_id`.
 - Update manifest endpoint.
 - Repository abstraction uses D1 when `DB` binding exists and in-memory fallback during tests.
 

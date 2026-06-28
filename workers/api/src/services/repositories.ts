@@ -1,34 +1,54 @@
-import type { MemoryRecord, UserRecord, VoiceSettingsRecord } from "../types";
+import type {
+  ActionConfirmationRecord,
+  AssistantActionRecord,
+  AssistantPlanRecord,
+  AssistantPlanStepRecord,
+  MemoryRecord,
+  SessionRecord,
+  UserRecord,
+  VoiceSettingsRecord
+} from "../types";
 import { createId } from "../utils/id";
 
 export type Repository = {
   createUser(input: { email: string; displayName: string; passwordHash?: string }): Promise<UserRecord>;
   findUserByEmail(email: string): Promise<UserRecord | undefined>;
+  createSession(input: { userId: string; tokenHash: string; deviceId?: string; expiresAt: string }): Promise<SessionRecord>;
   createMemory(input: Omit<MemoryRecord, "id" | "createdAt">): Promise<MemoryRecord>;
   listMemoriesForUser(userId: string): Promise<MemoryRecord[]>;
   resolveMemory(userId: string, key: string): Promise<MemoryRecord | undefined>;
+  updateMemory(userId: string, memoryId: string, input: Partial<Pick<MemoryRecord, "key" | "value" | "confirmed" | "confidence">>): Promise<MemoryRecord | undefined>;
+  deleteMemory(userId: string, memoryId: string): Promise<boolean>;
   setVoiceSettings(userId: string, settings: VoiceSettingsRecord): Promise<VoiceSettingsRecord>;
   getVoiceSettings(userId: string): Promise<VoiceSettingsRecord | undefined>;
+  createAction(input: Omit<AssistantActionRecord, "id" | "createdAt" | "updatedAt">): Promise<AssistantActionRecord>;
+  getActionForUser(userId: string, actionId: string): Promise<AssistantActionRecord | undefined>;
+  updateActionStatus(userId: string, actionId: string, status: AssistantActionRecord["status"], resultJson?: string): Promise<AssistantActionRecord | undefined>;
+  createActionConfirmation(input: Omit<ActionConfirmationRecord, "id" | "createdAt">): Promise<ActionConfirmationRecord>;
+  createPlanWithSteps(input: Omit<AssistantPlanRecord, "id" | "createdAt" | "updatedAt">, steps: Array<Omit<AssistantPlanStepRecord, "id" | "planId">>): Promise<{ plan: AssistantPlanRecord; steps: AssistantPlanStepRecord[] }>;
+  getPlanForUser(userId: string, planId: string): Promise<{ plan: AssistantPlanRecord; steps: AssistantPlanStepRecord[] } | undefined>;
 };
 
 export class InMemoryRepository implements Repository {
   private users = new Map<string, UserRecord>();
+  private sessions = new Map<string, SessionRecord>();
   private memories = new Map<string, MemoryRecord>();
   private voiceSettings = new Map<string, VoiceSettingsRecord>();
+  private actions = new Map<string, AssistantActionRecord>();
+  private confirmations = new Map<string, ActionConfirmationRecord>();
+  private plans = new Map<string, AssistantPlanRecord>();
+  private planSteps = new Map<string, AssistantPlanStepRecord[]>();
 
   async createUser(input: { email: string; displayName: string; passwordHash?: string }) {
     const existing = [...this.users.values()].find((user) => user.email === input.email);
     if (existing) return existing;
-
     const user: UserRecord = {
       id: createId("usr"),
       email: input.email,
       displayName: input.displayName,
       createdAt: new Date().toISOString()
     };
-    if (input.passwordHash) {
-      user.passwordHash = input.passwordHash;
-    }
+    if (input.passwordHash) user.passwordHash = input.passwordHash;
     this.users.set(user.id, user);
     return user;
   }
@@ -37,12 +57,21 @@ export class InMemoryRepository implements Repository {
     return [...this.users.values()].find((user) => user.email === email);
   }
 
-  async createMemory(input: Omit<MemoryRecord, "id" | "createdAt">) {
-    const memory: MemoryRecord = {
-      ...input,
-      id: createId("mem"),
+  async createSession(input: { userId: string; tokenHash: string; deviceId?: string; expiresAt: string }) {
+    const session: SessionRecord = {
+      id: createId("ses"),
+      userId: input.userId,
+      tokenHash: input.tokenHash,
+      expiresAt: input.expiresAt,
       createdAt: new Date().toISOString()
     };
+    if (input.deviceId) session.deviceId = input.deviceId;
+    this.sessions.set(session.id, session);
+    return session;
+  }
+
+  async createMemory(input: Omit<MemoryRecord, "id" | "createdAt">) {
+    const memory: MemoryRecord = { ...input, id: createId("mem"), createdAt: new Date().toISOString() };
     this.memories.set(memory.id, memory);
     return memory;
   }
@@ -57,6 +86,24 @@ export class InMemoryRepository implements Repository {
     );
   }
 
+  async updateMemory(
+    userId: string,
+    memoryId: string,
+    input: Partial<Pick<MemoryRecord, "key" | "value" | "confirmed" | "confidence">>
+  ) {
+    const memory = this.memories.get(memoryId);
+    if (!memory || memory.userId !== userId) return undefined;
+    const next = { ...memory, ...input };
+    this.memories.set(memoryId, next);
+    return next;
+  }
+
+  async deleteMemory(userId: string, memoryId: string) {
+    const memory = this.memories.get(memoryId);
+    if (!memory || memory.userId !== userId) return false;
+    return this.memories.delete(memoryId);
+  }
+
   async setVoiceSettings(userId: string, settings: VoiceSettingsRecord) {
     this.voiceSettings.set(userId, settings);
     return settings;
@@ -65,39 +112,63 @@ export class InMemoryRepository implements Repository {
   async getVoiceSettings(userId: string) {
     return this.voiceSettings.get(userId);
   }
+
+  async createAction(input: Omit<AssistantActionRecord, "id" | "createdAt" | "updatedAt">) {
+    const now = new Date().toISOString();
+    const action: AssistantActionRecord = { ...input, id: createId("act"), createdAt: now, updatedAt: now };
+    this.actions.set(action.id, action);
+    return action;
+  }
+
+  async getActionForUser(userId: string, actionId: string) {
+    const action = this.actions.get(actionId);
+    return action?.userId === userId ? action : undefined;
+  }
+
+  async updateActionStatus(userId: string, actionId: string, status: AssistantActionRecord["status"], resultJson?: string) {
+    const action = await this.getActionForUser(userId, actionId);
+    if (!action) return undefined;
+    const next: AssistantActionRecord = { ...action, status, updatedAt: new Date().toISOString() };
+    if (resultJson) next.resultJson = resultJson;
+    this.actions.set(actionId, next);
+    return next;
+  }
+
+  async createActionConfirmation(input: Omit<ActionConfirmationRecord, "id" | "createdAt">) {
+    const confirmation: ActionConfirmationRecord = {
+      ...input,
+      id: createId("conf"),
+      createdAt: new Date().toISOString()
+    };
+    this.confirmations.set(confirmation.id, confirmation);
+    return confirmation;
+  }
+
+  async createPlanWithSteps(
+    input: Omit<AssistantPlanRecord, "id" | "createdAt" | "updatedAt">,
+    steps: Array<Omit<AssistantPlanStepRecord, "id" | "planId">>
+  ) {
+    const now = new Date().toISOString();
+    const plan: AssistantPlanRecord = { ...input, id: createId("plan"), createdAt: now, updatedAt: now };
+    const createdSteps = steps.map((step) => ({ ...step, id: createId("step"), planId: plan.id }));
+    this.plans.set(plan.id, plan);
+    this.planSteps.set(plan.id, createdSteps);
+    return { plan, steps: createdSteps };
+  }
+
+  async getPlanForUser(userId: string, planId: string) {
+    const plan = this.plans.get(planId);
+    if (!plan || plan.userId !== userId) return undefined;
+    return { plan, steps: this.planSteps.get(planId) ?? [] };
+  }
 }
 
-type DbUserRow = {
-  id: string;
-  email: string;
-  display_name: string;
-  password_hash: string | null;
-  created_at: string;
-};
-
-type DbMemoryRow = {
-  id: string;
-  user_id: string;
-  memory_type: string;
-  key: string;
-  value: string;
-  confirmed: number;
-  confidence: number;
-  created_at: string;
-};
-
-type DbVoiceSettingsRow = {
-  user_id: string;
-  tts_enabled: number;
-  stt_enabled: number;
-  wake_word_enabled: number;
-  selected_voice_id: string;
-  language: string;
-  speed: number;
-  pitch: number;
-  volume: number;
-  auto_play_responses: number;
-};
+type DbUserRow = { id: string; email: string; display_name: string; password_hash: string | null; created_at: string };
+type DbMemoryRow = { id: string; user_id: string; memory_type: string; key: string; value: string; confirmed: number; confidence: number; created_at: string };
+type DbVoiceSettingsRow = { user_id: string; tts_enabled: number; stt_enabled: number; wake_word_enabled: number; selected_voice_id: string; language: string; speed: number; pitch: number; volume: number; auto_play_responses: number };
+type DbActionRow = { id: string; user_id: string; conversation_id: string | null; tool_name: string; risk_level: "low" | "medium" | "high"; status: AssistantActionRecord["status"]; input_json: string; result_json: string | null; created_at: string; updated_at: string };
+type DbPlanRow = { id: string; user_id: string; conversation_id: string | null; status: AssistantPlanRecord["status"]; title: string; goal: string; risk_level: "low" | "medium" | "high"; created_at: string; updated_at: string };
+type DbPlanStepRow = { id: string; plan_id: string; order_index: number; title: string; description: string | null; tool_name: string | null; status: string; requires_confirmation: number; result_json: string | null };
 
 export class D1Repository implements Repository {
   constructor(private readonly db: D1Database) {}
@@ -105,104 +176,99 @@ export class D1Repository implements Repository {
   async createUser(input: { email: string; displayName: string; passwordHash?: string }) {
     const existing = await this.findUserByEmail(input.email);
     if (existing) return existing;
-
     const user: UserRecord = {
       id: createId("usr"),
       email: input.email,
       displayName: input.displayName,
       createdAt: new Date().toISOString()
     };
-    if (input.passwordHash) {
-      user.passwordHash = input.passwordHash;
-    }
-
+    if (input.passwordHash) user.passwordHash = input.passwordHash;
     await this.db
-      .prepare(
-        `INSERT INTO users (id, email, display_name, password_hash, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?)`
-      )
+      .prepare(`INSERT INTO users (id, email, display_name, password_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`)
       .bind(user.id, user.email, user.displayName, user.passwordHash ?? null, user.createdAt, user.createdAt)
       .run();
-
     return user;
   }
 
   async findUserByEmail(email: string) {
     const row = await this.db
-      .prepare(
-        `SELECT id, email, display_name, password_hash, created_at
-         FROM users
-         WHERE email = ?
-         LIMIT 1`
-      )
+      .prepare(`SELECT id, email, display_name, password_hash, created_at FROM users WHERE email = ? LIMIT 1`)
       .bind(email)
       .first<DbUserRow>();
-
     return row ? mapUser(row) : undefined;
   }
 
-  async createMemory(input: Omit<MemoryRecord, "id" | "createdAt">) {
-    const memory: MemoryRecord = {
-      ...input,
-      id: createId("mem"),
+  async createSession(input: { userId: string; tokenHash: string; deviceId?: string; expiresAt: string }) {
+    const session: SessionRecord = {
+      id: createId("ses"),
+      userId: input.userId,
+      tokenHash: input.tokenHash,
+      expiresAt: input.expiresAt,
       createdAt: new Date().toISOString()
     };
+    if (input.deviceId) session.deviceId = input.deviceId;
+    await this.db
+      .prepare(`INSERT INTO user_sessions (id, user_id, token_hash, device_id, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?)`)
+      .bind(session.id, session.userId, session.tokenHash, session.deviceId ?? null, session.expiresAt, session.createdAt)
+      .run();
+    return session;
+  }
 
+  async createMemory(input: Omit<MemoryRecord, "id" | "createdAt">) {
+    const memory: MemoryRecord = { ...input, id: createId("mem"), createdAt: new Date().toISOString() };
     await this.db
       .prepare(
         `INSERT INTO assistant_memories
            (id, user_id, memory_type, key, value, confirmed, confidence, source, is_active, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, 'user_confirmation', 1, ?, ?)`
       )
-      .bind(
-        memory.id,
-        memory.userId,
-        memory.memoryType,
-        memory.key,
-        memory.value,
-        memory.confirmed ? 1 : 0,
-        memory.confidence,
-        memory.createdAt,
-        memory.createdAt
-      )
+      .bind(memory.id, memory.userId, memory.memoryType, memory.key, memory.value, memory.confirmed ? 1 : 0, memory.confidence, memory.createdAt, memory.createdAt)
       .run();
-
     return memory;
   }
 
   async listMemoriesForUser(userId: string) {
     const result = await this.db
-      .prepare(
-        `SELECT id, user_id, memory_type, key, value, confirmed, confidence, created_at
-         FROM assistant_memories
-         WHERE user_id = ? AND is_active = 1
-         ORDER BY created_at DESC`
-      )
+      .prepare(`SELECT id, user_id, memory_type, key, value, confirmed, confidence, created_at FROM assistant_memories WHERE user_id = ? AND is_active = 1 ORDER BY created_at DESC`)
       .bind(userId)
       .all<DbMemoryRow>();
-
     return result.results.map(mapMemory);
   }
 
   async resolveMemory(userId: string, key: string) {
     const row = await this.db
-      .prepare(
-        `SELECT id, user_id, memory_type, key, value, confirmed, confidence, created_at
-         FROM assistant_memories
-         WHERE user_id = ? AND lower(key) = lower(?) AND is_active = 1
-         ORDER BY confirmed DESC, confidence DESC, created_at DESC
-         LIMIT 1`
-      )
+      .prepare(`SELECT id, user_id, memory_type, key, value, confirmed, confidence, created_at FROM assistant_memories WHERE user_id = ? AND lower(key) = lower(?) AND is_active = 1 ORDER BY confirmed DESC, confidence DESC, created_at DESC LIMIT 1`)
       .bind(userId, key)
       .first<DbMemoryRow>();
-
     return row ? mapMemory(row) : undefined;
+  }
+
+  async updateMemory(
+    userId: string,
+    memoryId: string,
+    input: Partial<Pick<MemoryRecord, "key" | "value" | "confirmed" | "confidence">>
+  ) {
+    const current = (await this.listMemoriesForUser(userId)).find((memory) => memory.id === memoryId);
+    if (!current) return undefined;
+    const next = { ...current, ...input };
+    await this.db
+      .prepare(`UPDATE assistant_memories SET key = ?, value = ?, confirmed = ?, confidence = ?, updated_at = ? WHERE id = ? AND user_id = ?`)
+      .bind(next.key, next.value, next.confirmed ? 1 : 0, next.confidence, new Date().toISOString(), memoryId, userId)
+      .run();
+    return next;
+  }
+
+  async deleteMemory(userId: string, memoryId: string) {
+    const result = await this.db
+      .prepare(`UPDATE assistant_memories SET is_active = 0, updated_at = ? WHERE id = ? AND user_id = ?`)
+      .bind(new Date().toISOString(), memoryId, userId)
+      .run();
+    return (result.meta.changes ?? 0) > 0;
   }
 
   async setVoiceSettings(userId: string, settings: VoiceSettingsRecord) {
     const id = createId("vset");
     const now = new Date().toISOString();
-
     await this.db
       .prepare(
         `INSERT INTO voice_settings
@@ -220,38 +286,91 @@ export class D1Repository implements Repository {
            auto_play_responses = excluded.auto_play_responses,
            updated_at = excluded.updated_at`
       )
-      .bind(
-        id,
-        userId,
-        settings.ttsEnabled ? 1 : 0,
-        settings.sttEnabled ? 1 : 0,
-        settings.wakeWordEnabled ? 1 : 0,
-        settings.selectedVoiceId,
-        settings.language,
-        settings.speed,
-        settings.pitch,
-        settings.volume,
-        settings.autoPlayResponses ? 1 : 0,
-        now,
-        now
-      )
+      .bind(id, userId, settings.ttsEnabled ? 1 : 0, settings.sttEnabled ? 1 : 0, settings.wakeWordEnabled ? 1 : 0, settings.selectedVoiceId, settings.language, settings.speed, settings.pitch, settings.volume, settings.autoPlayResponses ? 1 : 0, now, now)
       .run();
-
     return settings;
   }
 
   async getVoiceSettings(userId: string) {
     const row = await this.db
-      .prepare(
-        `SELECT user_id, tts_enabled, stt_enabled, wake_word_enabled, selected_voice_id, language, speed, pitch, volume, auto_play_responses
-         FROM voice_settings
-         WHERE user_id = ?
-         LIMIT 1`
-      )
+      .prepare(`SELECT user_id, tts_enabled, stt_enabled, wake_word_enabled, selected_voice_id, language, speed, pitch, volume, auto_play_responses FROM voice_settings WHERE user_id = ? LIMIT 1`)
       .bind(userId)
       .first<DbVoiceSettingsRow>();
-
     return row ? mapVoiceSettings(row) : undefined;
+  }
+
+  async createAction(input: Omit<AssistantActionRecord, "id" | "createdAt" | "updatedAt">) {
+    const now = new Date().toISOString();
+    const action: AssistantActionRecord = { ...input, id: createId("act"), createdAt: now, updatedAt: now };
+    await this.db
+      .prepare(`INSERT INTO assistant_actions (id, user_id, conversation_id, tool_name, risk_level, status, input_json, result_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .bind(action.id, action.userId, action.conversationId ?? null, action.toolName, action.riskLevel, action.status, action.inputJson, action.resultJson ?? null, now, now)
+      .run();
+    return action;
+  }
+
+  async getActionForUser(userId: string, actionId: string) {
+    const row = await this.db
+      .prepare(`SELECT id, user_id, conversation_id, tool_name, risk_level, status, input_json, result_json, created_at, updated_at FROM assistant_actions WHERE id = ? AND user_id = ? LIMIT 1`)
+      .bind(actionId, userId)
+      .first<DbActionRow>();
+    return row ? mapAction(row) : undefined;
+  }
+
+  async updateActionStatus(userId: string, actionId: string, status: AssistantActionRecord["status"], resultJson?: string) {
+    await this.db
+      .prepare(`UPDATE assistant_actions SET status = ?, result_json = COALESCE(?, result_json), updated_at = ? WHERE id = ? AND user_id = ?`)
+      .bind(status, resultJson ?? null, new Date().toISOString(), actionId, userId)
+      .run();
+    return this.getActionForUser(userId, actionId);
+  }
+
+  async createActionConfirmation(input: Omit<ActionConfirmationRecord, "id" | "createdAt">) {
+    const confirmation: ActionConfirmationRecord = {
+      ...input,
+      id: createId("conf"),
+      createdAt: new Date().toISOString()
+    };
+    await this.db
+      .prepare(`INSERT INTO action_confirmations (id, user_id, action_id, decision, confirmed_payload_json, created_at) VALUES (?, ?, ?, ?, ?, ?)`)
+      .bind(confirmation.id, confirmation.userId, confirmation.actionId, confirmation.decision, confirmation.confirmedPayloadJson ?? null, confirmation.createdAt)
+      .run();
+    return confirmation;
+  }
+
+  async createPlanWithSteps(
+    input: Omit<AssistantPlanRecord, "id" | "createdAt" | "updatedAt">,
+    steps: Array<Omit<AssistantPlanStepRecord, "id" | "planId">>
+  ) {
+    const now = new Date().toISOString();
+    const plan: AssistantPlanRecord = { ...input, id: createId("plan"), createdAt: now, updatedAt: now };
+    await this.db
+      .prepare(`INSERT INTO assistant_plans (id, user_id, conversation_id, status, title, goal, risk_level, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .bind(plan.id, plan.userId, plan.conversationId ?? null, plan.status, plan.title, plan.goal, plan.riskLevel, now, now)
+      .run();
+    const createdSteps: AssistantPlanStepRecord[] = [];
+    for (const step of steps) {
+      const createdStep: AssistantPlanStepRecord = { ...step, id: createId("step"), planId: plan.id };
+      await this.db
+        .prepare(`INSERT INTO assistant_plan_steps (id, plan_id, order_index, title, description, tool_name, status, requires_confirmation, result_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        .bind(createdStep.id, createdStep.planId, createdStep.orderIndex, createdStep.title, createdStep.description ?? null, createdStep.toolName ?? null, createdStep.status, createdStep.requiresConfirmation ? 1 : 0, createdStep.resultJson ?? null)
+        .run();
+      createdSteps.push(createdStep);
+    }
+    return { plan, steps: createdSteps };
+  }
+
+  async getPlanForUser(userId: string, planId: string) {
+    const planRow = await this.db
+      .prepare(`SELECT id, user_id, conversation_id, status, title, goal, risk_level, created_at, updated_at FROM assistant_plans WHERE id = ? AND user_id = ? LIMIT 1`)
+      .bind(planId, userId)
+      .first<DbPlanRow>();
+    if (!planRow) return undefined;
+    const steps = await this.db
+      .prepare(`SELECT id, plan_id, order_index, title, description, tool_name, status, requires_confirmation, result_json FROM assistant_plan_steps WHERE plan_id = ? ORDER BY order_index ASC`)
+      .bind(planId)
+      .all<DbPlanStepRow>();
+    return { plan: mapPlan(planRow), steps: steps.results.map(mapPlanStep) };
   }
 }
 
@@ -260,15 +379,8 @@ const memoryRepository = new InMemoryRepository();
 export const createRepository = (db?: D1Database): Repository => (db ? new D1Repository(db) : memoryRepository);
 
 const mapUser = (row: DbUserRow): UserRecord => {
-  const user: UserRecord = {
-    id: row.id,
-    email: row.email,
-    displayName: row.display_name,
-    createdAt: row.created_at
-  };
-  if (row.password_hash) {
-    user.passwordHash = row.password_hash;
-  }
+  const user: UserRecord = { id: row.id, email: row.email, displayName: row.display_name, createdAt: row.created_at };
+  if (row.password_hash) user.passwordHash = row.password_hash;
   return user;
 };
 
@@ -295,3 +407,49 @@ const mapVoiceSettings = (row: DbVoiceSettingsRow): VoiceSettingsRecord => ({
   volume: row.volume,
   autoPlayResponses: row.auto_play_responses === 1
 });
+
+const mapAction = (row: DbActionRow): AssistantActionRecord => {
+  const action: AssistantActionRecord = {
+    id: row.id,
+    userId: row.user_id,
+    toolName: row.tool_name,
+    riskLevel: row.risk_level,
+    status: row.status,
+    inputJson: row.input_json,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+  if (row.conversation_id) action.conversationId = row.conversation_id;
+  if (row.result_json) action.resultJson = row.result_json;
+  return action;
+};
+
+const mapPlan = (row: DbPlanRow): AssistantPlanRecord => {
+  const plan: AssistantPlanRecord = {
+    id: row.id,
+    userId: row.user_id,
+    status: row.status,
+    title: row.title,
+    goal: row.goal,
+    riskLevel: row.risk_level,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+  if (row.conversation_id) plan.conversationId = row.conversation_id;
+  return plan;
+};
+
+const mapPlanStep = (row: DbPlanStepRow): AssistantPlanStepRecord => {
+  const step: AssistantPlanStepRecord = {
+    id: row.id,
+    planId: row.plan_id,
+    orderIndex: row.order_index,
+    title: row.title,
+    status: row.status,
+    requiresConfirmation: row.requires_confirmation === 1
+  };
+  if (row.description) step.description = row.description;
+  if (row.tool_name) step.toolName = row.tool_name;
+  if (row.result_json) step.resultJson = row.result_json;
+  return step;
+};

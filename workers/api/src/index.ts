@@ -25,7 +25,7 @@ app.get("/api/health", (c) =>
   c.json({
     ok: true,
     name: "xion-assistant-api",
-    version: "0.1.0",
+    version: "0.2.0",
     routes: {
       web: c.env.PUBLIC_WEB_URL,
       api: c.env.PUBLIC_API_URL
@@ -49,7 +49,15 @@ app.post("/api/auth/register", zValidator("json", authSchema), async (c) => {
     passwordHash
   });
   const token = await createSessionToken(user.id, c.env.JWT_SECRET);
-  return c.json({ ok: true, user: { id: user.id, email: user.email, displayName: user.displayName }, token });
+  const tokenHash = await hashPassword(token);
+  const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30).toISOString();
+  const session = await repository.createSession({ userId: user.id, tokenHash, expiresAt });
+  return c.json({
+    ok: true,
+    user: { id: user.id, email: user.email, displayName: user.displayName },
+    token,
+    session: { id: session.id, expiresAt: session.expiresAt }
+  });
 });
 
 app.post("/api/auth/login", zValidator("json", authSchema.omit({ displayName: true })), async (c) => {
@@ -60,7 +68,15 @@ app.post("/api/auth/login", zValidator("json", authSchema.omit({ displayName: tr
     return c.json({ ok: false, error: "invalid_credentials" }, 401);
   }
   const token = await createSessionToken(user.id, c.env.JWT_SECRET);
-  return c.json({ ok: true, user: { id: user.id, email: user.email, displayName: user.displayName }, token });
+  const tokenHash = await hashPassword(token);
+  const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30).toISOString();
+  const session = await repository.createSession({ userId: user.id, tokenHash, expiresAt });
+  return c.json({
+    ok: true,
+    user: { id: user.id, email: user.email, displayName: user.displayName },
+    token,
+    session: { id: session.id, expiresAt: session.expiresAt }
+  });
 });
 
 app.get("/api/memory", async (c) => {
@@ -91,10 +107,119 @@ app.post(
   }
 );
 
+app.put(
+  "/api/memory/:id",
+  zValidator(
+    "json",
+    z.object({
+      userId: z.string().min(1),
+      key: z.string().min(1).optional(),
+      value: z.string().min(1).optional(),
+      confirmed: z.boolean().optional(),
+      confidence: z.number().min(0).max(1).optional()
+    })
+  ),
+  async (c) => {
+    const body = c.req.valid("json");
+    const repository = createRepository(c.env.DB);
+    const patch: {
+      key?: string;
+      value?: string;
+      confirmed?: boolean;
+      confidence?: number;
+    } = {};
+    if (body.key !== undefined) patch.key = body.key;
+    if (body.value !== undefined) patch.value = body.value;
+    if (body.confirmed !== undefined) patch.confirmed = body.confirmed;
+    if (body.confidence !== undefined) patch.confidence = body.confidence;
+    const memory = await repository.updateMemory(body.userId, c.req.param("id"), patch);
+    if (!memory) return c.json({ ok: false, error: "memory_not_found" }, 404);
+    return c.json({ ok: true, memory });
+  }
+);
+
+app.delete("/api/memory/:id", async (c) => {
+  const userId = c.req.query("user_id");
+  if (!userId) return c.json({ ok: false, error: "user_id_required" }, 400);
+  const repository = createRepository(c.env.DB);
+  const deleted = await repository.deleteMemory(userId, c.req.param("id"));
+  if (!deleted) return c.json({ ok: false, error: "memory_not_found" }, 404);
+  return c.json({ ok: true, deleted: true });
+});
+
 app.post("/api/assistant/message", zValidator("json", assistantRequestSchema), async (c) => {
   const body = c.req.valid("json");
   const repository = createRepository(c.env.DB);
   return c.json(await handleAssistantMessage(repository, body));
+});
+
+app.get("/api/actions/:id", async (c) => {
+  const userId = c.req.query("user_id");
+  if (!userId) return c.json({ ok: false, error: "user_id_required" }, 400);
+  const repository = createRepository(c.env.DB);
+  const action = await repository.getActionForUser(userId, c.req.param("id"));
+  if (!action) return c.json({ ok: false, error: "action_not_found" }, 404);
+  return c.json({ ok: true, action });
+});
+
+app.post(
+  "/api/actions/:id/confirm",
+  zValidator(
+    "json",
+    z.object({
+      userId: z.string().min(1),
+      payload: z.record(z.unknown()).optional()
+    })
+  ),
+  async (c) => {
+    const body = c.req.valid("json");
+    const repository = createRepository(c.env.DB);
+    const action = await repository.getActionForUser(body.userId, c.req.param("id"));
+    if (!action) return c.json({ ok: false, error: "action_not_found" }, 404);
+    if (action.status !== "pending_confirmation") {
+      return c.json({ ok: false, error: "action_not_pending_confirmation" }, 409);
+    }
+    const confirmation = await repository.createActionConfirmation({
+      userId: body.userId,
+      actionId: action.id,
+      decision: "confirmed",
+      confirmedPayloadJson: JSON.stringify(body.payload ?? JSON.parse(action.inputJson))
+    });
+    const updated = await repository.updateActionStatus(
+      body.userId,
+      action.id,
+      "failed",
+      JSON.stringify({ confirmationRecorded: true, execution: "connector_not_configured" })
+    );
+    return c.json({ ok: true, confirmation, action: updated });
+  }
+);
+
+app.post(
+  "/api/actions/:id/cancel",
+  zValidator("json", z.object({ userId: z.string().min(1) })),
+  async (c) => {
+    const body = c.req.valid("json");
+    const repository = createRepository(c.env.DB);
+    const action = await repository.getActionForUser(body.userId, c.req.param("id"));
+    if (!action) return c.json({ ok: false, error: "action_not_found" }, 404);
+    const confirmation = await repository.createActionConfirmation({
+      userId: body.userId,
+      actionId: action.id,
+      decision: "cancelled"
+    });
+    const updated = await repository.updateActionStatus(body.userId, action.id, "cancelled");
+    return c.json({ ok: true, confirmation, action: updated });
+  }
+);
+
+app.get("/api/plans/:id", async (c) => {
+  const userId = c.req.query("user_id");
+  if (!userId) return c.json({ ok: false, error: "user_id_required" }, 400);
+  const repository = createRepository(c.env.DB);
+  const plan = await repository.getPlanForUser(userId, c.req.param("id"));
+  if (!plan) return c.json({ ok: false, error: "plan_not_found" }, 404);
+  return c.json({ ok: true, ...plan });
 });
 
 app.get("/api/voice/voices", (c) => c.json({ ok: true, voices: listVoices() }));
@@ -140,7 +265,7 @@ app.post(
 );
 
 app.post("/api/voice/transcribe", () =>
-  new Response(JSON.stringify({ ok: false, error: "stt_provider_not_configured_in_v0.0.1" }), {
+  new Response(JSON.stringify({ ok: false, error: "stt_provider_not_configured_in_v0.2.0" }), {
     status: 501,
     headers: { "content-type": "application/json" }
   })

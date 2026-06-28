@@ -45,3 +45,58 @@ export type VoiceSettingsRecord = {
   volume: number;
   autoPlayResponses: boolean;
 };
+
+export type SessionRecord = {
+  id: string;
+  userId: string;
+  tokenHash: string;
+  deviceId?: string;
+  expiresAt: string;
+  createdAt: string;
+};
+
+export type AssistantActionRecord = {
+  id: string;
+  userId: string;
+  conversationId?: string;
+  toolName: string;
+  riskLevel: "low" | "medium" | "high";
+  status: "draft" | "pending_confirmation" | "running" | "completed" | "failed" | "cancelled";
+  inputJson: string;
+  resultJson?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ActionConfirmationRecord = {
+  id: string;
+  userId: string;
+  actionId: string;
+  decision: "confirmed" | "cancelled" | "edited";
+  confirmedPayloadJson?: string;
+  createdAt: string;
+};
+
+export type AssistantPlanRecord = {
+  id: string;
+  userId: string;
+  conversationId?: string;
+  status: "draft" | "pending_confirmation" | "running" | "completed" | "failed" | "cancelled";
+  title: string;
+  goal: string;
+  riskLevel: "low" | "medium" | "high";
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AssistantPlanStepRecord = {
+  id: string;
+  planId: string;
+  orderIndex: number;
+  title: string;
+  description?: string;
+  toolName?: string;
+  status: string;
+  requiresConfirmation: boolean;
+  resultJson?: string;
+};

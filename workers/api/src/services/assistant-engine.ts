@@ -26,12 +26,12 @@ export const classifyRisk = (toolName: string): RiskLevel => {
 export const handleAssistantMessage = async (
   repository: Repository,
   input: {
-  userId: string;
-  message: string;
-  spokenResponse: boolean;
-}) => {
+    userId: string;
+    message: string;
+    spokenResponse: boolean;
+  }
+) => {
   const aliasIntent = extractWifeAliasMessage(input.message);
-  const planSteps = [];
 
   if (aliasIntent) {
     const memory = await repository.resolveMemory(input.userId, aliasIntent.alias);
@@ -46,33 +46,67 @@ export const handleAssistantMessage = async (
     }
 
     const riskLevel = classifyRisk("communication.send_message");
-    planSteps.push({
-      order: 1,
-      title: "Resolver destinatario",
-      status: "completed",
-      result: memory.value
-    });
-    planSteps.push({
-      order: 2,
-      title: "Preparar mensaje",
-      status: "pending_confirmation",
-      requiresConfirmation: mustConfirm(riskLevel)
-    });
-
     const response = `Le enviare a ${memory.value}: "${aliasIntent.message}". Confirmas envio?`;
+    const action = await repository.createAction({
+      userId: input.userId,
+      toolName: "communication.send_message",
+      riskLevel,
+      status: "pending_confirmation",
+      inputJson: JSON.stringify({
+        recipient: memory.value,
+        message: aliasIntent.message,
+        channel: "preferred"
+      })
+    });
+    const savedPlan = await repository.createPlanWithSteps(
+      {
+        userId: input.userId,
+        status: "pending_confirmation",
+        title: "Enviar mensaje con confirmacion",
+        goal: `Enviar mensaje a ${memory.value}`,
+        riskLevel
+      },
+      [
+        {
+          orderIndex: 1,
+          title: "Resolver destinatario",
+          description: `Alias ${aliasIntent.alias} resuelto a ${memory.value}`,
+          toolName: "memory.resolve",
+          status: "completed",
+          requiresConfirmation: false,
+          resultJson: JSON.stringify({ contact: memory.value })
+        },
+        {
+          orderIndex: 2,
+          title: "Preparar mensaje",
+          description: aliasIntent.message,
+          toolName: "communication.send_message",
+          status: "pending_confirmation",
+          requiresConfirmation: mustConfirm(riskLevel)
+        }
+      ]
+    );
     return {
       ok: true,
       status: "pending_confirmation",
       response,
       action: {
+        id: action.id,
         toolName: "communication.send_message",
         riskLevel,
         status: "pending_confirmation"
       },
       plan: {
+        id: savedPlan.plan.id,
         title: "Enviar mensaje con confirmacion",
         riskLevel,
-        steps: planSteps
+        steps: savedPlan.steps.map((step) => ({
+          id: step.id,
+          order: step.orderIndex,
+          title: step.title,
+          status: step.status,
+          requiresConfirmation: step.requiresConfirmation
+        }))
       },
       audio: input.spokenResponse
         ? synthesizeSpeech({

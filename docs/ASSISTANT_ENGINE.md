@@ -1,6 +1,6 @@
 # Assistant Engine
 
-`v0.0.1` includes a small deterministic engine for testing foundation behavior.
+`v0.2.0` includes a small deterministic engine for testing foundation behavior.
 
 ## Flow
 
@@ -27,4 +27,4 @@ If `spokenResponse=true`, engine calls TTS gateway.
 
 ## Action Logging
 
-Tables exist. Full persistence of engine actions to D1 is pending.
+High-risk message actions, confirmations, assistant plans and plan steps persist through the repository. Real connector execution is still pending.

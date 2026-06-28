@@ -2,7 +2,7 @@
 
 ## Auth
 
-`v0.1.0` has basic email/password endpoints backed by repository persistence. Passwords are hashed. Production should replace SHA-256 placeholder with stronger password hashing supported by target runtime.
+`v0.2.0` has basic email/password endpoints backed by repository persistence and session metadata. Passwords are hashed. Production should replace SHA-256 placeholder with stronger password hashing supported by target runtime.
 
 ## Sessions
 
@@ -18,7 +18,7 @@ OAuth tokens must be encrypted using `TOKEN_ENCRYPTION_KEY`. Never log tokens.
 
 ## Confirmations
 
-High risk actions require explicit confirmation. Tests verify message send stays `pending_confirmation`.
+High risk actions require explicit confirmation. Tests verify message send starts `pending_confirmation`. Confirming without a configured connector records the confirmation and marks the action failed with `connector_not_configured`, not completed.
 
 ## Rate Limiting And Turnstile
 

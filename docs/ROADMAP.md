@@ -27,6 +27,15 @@
 
 ## v0.2.0
 
+- Session metadata persisted for register/login.
+- Memory update/delete endpoints with `user_id` ownership guard.
+- Assistant actions persisted for high-risk message flow.
+- Action confirmation/cancel endpoints persist decisions.
+- Confirmation does not fake connector execution; missing connector marks action failed with explicit reason.
+- Assistant plans and steps persisted and readable by owner only.
+
+## v0.2.0
+
 - Google OAuth.
 - Google Calendar.
 - YouTube connector.
