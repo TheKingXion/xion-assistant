@@ -8,6 +8,14 @@ type ProviderConfig = {
   defaultScopes: string[];
 };
 
+type TokenResponse = {
+  access_token: string;
+  refresh_token?: string;
+  expires_in?: number;
+  scope?: string;
+  id_token?: string;
+};
+
 export const supportedOAuthProviders = ["google", "spotify"] as const;
 
 export const isOAuthProvider = (value: string): value is OAuthProvider =>
@@ -80,4 +88,95 @@ export const buildAuthorizationUrl = (input: {
     scopes,
     configured: Boolean(config.clientId && config.clientSecret)
   };
+};
+
+const parseJwtPayload = (token: string): Record<string, unknown> => {
+  const [, payload] = token.split(".");
+  if (!payload) return {};
+  const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+  return JSON.parse(atob(padded)) as Record<string, unknown>;
+};
+
+const requireProviderConfig = (config: ProviderConfig) => {
+  if (!config.clientId || !config.clientSecret) {
+    throw new Error("oauth_provider_not_configured");
+  }
+  return { clientId: config.clientId, clientSecret: config.clientSecret };
+};
+
+export const exchangeOAuthCode = async (input: {
+  env: Env;
+  provider: OAuthProvider;
+  code: string;
+  redirectUri: string;
+}) => {
+  const config = getOAuthProviderConfig(input.env, input.provider);
+  const credentials = requireProviderConfig(config);
+  const body = new URLSearchParams({
+    grant_type: "authorization_code",
+    code: input.code,
+    redirect_uri: input.redirectUri
+  });
+
+  const headers: Record<string, string> = {
+    "content-type": "application/x-www-form-urlencoded"
+  };
+
+  if (input.provider === "spotify") {
+    headers.authorization = `Basic ${btoa(`${credentials.clientId}:${credentials.clientSecret}`)}`;
+  } else {
+    body.set("client_id", credentials.clientId);
+    body.set("client_secret", credentials.clientSecret);
+  }
+
+  const response = await fetch(config.tokenUrl, {
+    method: "POST",
+    headers,
+    body
+  });
+  if (!response.ok) {
+    throw new Error("oauth_token_exchange_failed");
+  }
+
+  const token = (await response.json()) as TokenResponse;
+  if (!token.access_token) {
+    throw new Error("oauth_access_token_missing");
+  }
+
+  const scopes = token.scope?.split(/\s+/).filter(Boolean) ?? config.defaultScopes;
+  const expiresAt = token.expires_in
+    ? new Date(Date.now() + token.expires_in * 1000).toISOString()
+    : undefined;
+  const providerUserId = await resolveProviderUserId(input.provider, token);
+
+  return {
+    providerUserId,
+    accessToken: token.access_token,
+    refreshToken: token.refresh_token,
+    scopes,
+    expiresAt
+  };
+};
+
+const resolveProviderUserId = async (provider: OAuthProvider, token: TokenResponse) => {
+  if (provider === "google") {
+    const jwtPayload = token.id_token ? parseJwtPayload(token.id_token) : {};
+    if (typeof jwtPayload.sub === "string") return jwtPayload.sub;
+    const response = await fetch("https://openidconnect.googleapis.com/v1/userinfo", {
+      headers: { authorization: `Bearer ${token.access_token}` }
+    });
+    if (!response.ok) throw new Error("oauth_profile_fetch_failed");
+    const profile = (await response.json()) as { sub?: string };
+    if (!profile.sub) throw new Error("oauth_provider_user_id_missing");
+    return profile.sub;
+  }
+
+  const response = await fetch("https://api.spotify.com/v1/me", {
+    headers: { authorization: `Bearer ${token.access_token}` }
+  });
+  if (!response.ok) throw new Error("oauth_profile_fetch_failed");
+  const profile = (await response.json()) as { id?: string };
+  if (!profile.id) throw new Error("oauth_provider_user_id_missing");
+  return profile.id;
 };

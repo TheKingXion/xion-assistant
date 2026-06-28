@@ -59,6 +59,14 @@
 - Redacted connected-account listing by `user_id`.
 - OAuth disconnect endpoint.
 
+## v0.6.0
+
+- OAuth callback exchanges authorization codes for tokens.
+- Google user id resolved from `id_token` or userinfo.
+- Spotify user id resolved from `/v1/me`.
+- Exchanged tokens are encrypted before repository storage.
+- Missing provider secrets return explicit non-success error.
+
 ## v0.2.0
 
 - Google OAuth.

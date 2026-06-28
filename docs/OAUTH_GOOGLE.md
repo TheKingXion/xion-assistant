@@ -1,6 +1,6 @@
 # Google OAuth
 
-Status: foundation added in `v0.5.0`. Authorization URL generation and encrypted token storage exist. Real token exchange remains pending.
+Status: token exchange foundation added in `v0.6.0`. Authorization URL generation, callback exchange, provider user id resolution, encrypted token storage and redacted account listing exist.
 
 Redirect:
 
@@ -25,4 +25,10 @@ Connected accounts:
 
 ```text
 GET /api/oauth/accounts?user_id=<USER_ID>
+```
+
+Callback:
+
+```text
+GET /api/oauth/google/callback?code=<CODE>&state=<STATE>
 ```

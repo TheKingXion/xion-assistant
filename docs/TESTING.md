@@ -25,6 +25,8 @@ pnpm build
 - Tool registry exposes confirmation metadata.
 - OAuth start URL generation does not expose client secrets.
 - OAuth account list is redacted and isolated by `user_id`.
+- OAuth callback exchanges mocked token responses and redacts returned account.
+- Missing OAuth provider secrets fail with explicit error.
 - Token encryption round-trip is covered.
 - Update manifest endpoint.
 - Repository abstraction uses D1 when `DB` binding exists and in-memory fallback during tests.

@@ -6,7 +6,7 @@ import { cors } from "hono/cors";
 import { z } from "zod";
 import { createAiGateway, type AiGatewayConfig } from "./services/ai-gateway";
 import { handleAssistantMessage } from "./services/assistant-engine";
-import { buildAuthorizationUrl, isOAuthProvider, parseOAuthState } from "./services/oauth";
+import { buildAuthorizationUrl, exchangeOAuthCode, isOAuthProvider, parseOAuthState } from "./services/oauth";
 import { createRepository } from "./services/repositories";
 import { createSessionToken, encryptToken, hashPassword, verifyPassword } from "./services/security";
 import { getTool, listTools } from "./services/tool-registry";
@@ -37,7 +37,7 @@ app.get("/api/health", (c) =>
   c.json({
     ok: true,
     name: "xion-assistant-api",
-    version: "0.5.0",
+    version: "0.6.0",
     routes: {
       web: c.env.PUBLIC_WEB_URL,
       api: c.env.PUBLIC_API_URL
@@ -275,24 +275,55 @@ app.get("/api/oauth/:provider/start", (c) => {
   });
 });
 
-app.get("/api/oauth/:provider/callback", (c) => {
+app.get("/api/oauth/:provider/callback", async (c) => {
   const provider = c.req.param("provider");
   const code = c.req.query("code");
   const state = c.req.query("state");
   if (!isOAuthProvider(provider)) return c.json({ ok: false, error: "unsupported_oauth_provider" }, 404);
   if (!code) return c.json({ ok: false, error: "oauth_code_required" }, 400);
   if (!state) return c.json({ ok: false, error: "oauth_state_required" }, 400);
+  let parsedState: { userId: string; provider: typeof provider };
   try {
-    const parsedState = parseOAuthState(state);
+    parsedState = parseOAuthState(state);
     if (parsedState.provider !== provider) return c.json({ ok: false, error: "oauth_state_provider_mismatch" }, 400);
   } catch {
     return c.json({ ok: false, error: "invalid_oauth_state" }, 400);
   }
-  return c.json({
-    ok: false,
-    error: "oauth_token_exchange_not_configured_in_v0.5.0",
-    provider
-  }, 501);
+  if (!c.env.TOKEN_ENCRYPTION_KEY) return c.json({ ok: false, error: "token_encryption_key_required" }, 500);
+  try {
+    const exchanged = await exchangeOAuthCode({
+      env: c.env,
+      provider,
+      code,
+      redirectUri: `${c.env.PUBLIC_API_URL}/api/oauth/${provider}/callback`
+    });
+    const repository = createRepository(c.env.DB);
+    const input: {
+      userId: string;
+      provider: typeof provider;
+      providerUserId: string;
+      encryptedAccessToken: string;
+      encryptedRefreshToken?: string;
+      scopes: string[];
+      expiresAt?: string;
+    } = {
+      userId: parsedState.userId,
+      provider,
+      providerUserId: exchanged.providerUserId,
+      encryptedAccessToken: await encryptToken(exchanged.accessToken, c.env.TOKEN_ENCRYPTION_KEY),
+      scopes: exchanged.scopes
+    };
+    if (exchanged.refreshToken !== undefined) {
+      input.encryptedRefreshToken = await encryptToken(exchanged.refreshToken, c.env.TOKEN_ENCRYPTION_KEY);
+    }
+    if (exchanged.expiresAt !== undefined) input.expiresAt = exchanged.expiresAt;
+    const account = await repository.upsertOAuthAccount(input);
+    return c.json({ ok: true, provider, account });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "oauth_exchange_failed";
+    const status = message === "oauth_provider_not_configured" ? 501 : 502;
+    return c.json({ ok: false, error: message, provider }, status);
+  }
 });
 
 app.post(

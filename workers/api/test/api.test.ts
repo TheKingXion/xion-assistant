@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { app } from "../src/index";
 
 const env = {
@@ -8,13 +8,31 @@ const env = {
   TOKEN_ENCRYPTION_KEY: "local-token-encryption-key-32-chars"
 };
 
+const configuredOAuthEnv = {
+  ...env,
+  GOOGLE_CLIENT_ID: "google-client",
+  GOOGLE_CLIENT_SECRET: "google-secret",
+  SPOTIFY_CLIENT_ID: "spotify-client",
+  SPOTIFY_CLIENT_SECRET: "spotify-secret"
+};
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+const fakeJwt = (payload: Record<string, unknown>) => {
+  const encode = (value: Record<string, unknown>) =>
+    btoa(JSON.stringify(value)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+  return `${encode({ alg: "none" })}.${encode(payload)}.sig`;
+};
+
 describe("xion assistant api", () => {
   it("returns health with project routes", async () => {
     const res = await app.request("/api/health", {}, env);
     const json = (await res.json()) as any;
 
     expect(json.ok).toBe(true);
-    expect(json.version).toBe("0.5.0");
+    expect(json.version).toBe("0.6.0");
   });
 
   it("creates persisted session metadata on register", async () => {
@@ -297,6 +315,43 @@ describe("xion assistant api", () => {
 
     expect(((await deleted.json()) as any).disconnected).toBe(true);
     expect(((await listed.json()) as any).accounts).toHaveLength(0);
+  });
+
+  it("exchanges google oauth callback, encrypts tokens, and returns redacted account", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({
+            access_token: "google-access-token",
+            refresh_token: "google-refresh-token",
+            expires_in: 3600,
+            scope: "openid email",
+            id_token: fakeJwt({ sub: "google-user-1" })
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        )
+      )
+    );
+    const start = await app.request("/api/oauth/google/start?user_id=oauth-callback-user", {}, configuredOAuthEnv);
+    const startJson = (await start.json()) as any;
+    const callback = await app.request(`/api/oauth/google/callback?code=auth-code&state=${encodeURIComponent(startJson.state)}`, {}, configuredOAuthEnv);
+    const callbackJson = (await callback.json()) as any;
+
+    expect(callbackJson.ok).toBe(true);
+    expect(callbackJson.account.providerUserId).toBe("google-user-1");
+    expect(JSON.stringify(callbackJson)).not.toContain("google-access-token");
+    expect(JSON.stringify(callbackJson)).not.toContain("google-refresh-token");
+  });
+
+  it("returns explicit error when oauth callback provider secrets are missing", async () => {
+    const start = await app.request("/api/oauth/google/start?user_id=oauth-missing-config", {}, env);
+    const startJson = (await start.json()) as any;
+    const callback = await app.request(`/api/oauth/google/callback?code=auth-code&state=${encodeURIComponent(startJson.state)}`, {}, env);
+    const callbackJson = (await callback.json()) as any;
+
+    expect(callback.status).toBe(501);
+    expect(callbackJson.error).toBe("oauth_provider_not_configured");
   });
 
   it("records confirmation but does not fake connector execution", async () => {

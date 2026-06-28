@@ -10,7 +10,7 @@ Session token foundation exists. Production needs refresh tokens, revocation and
 
 ## OAuth
 
-Google/Spotify OAuth start URLs and encrypted token storage exist. Real token exchange remains pending.
+Google/Spotify OAuth start URLs, callback token exchange and encrypted token storage exist. Missing provider secrets fail closed.
 
 ## Token Encryption
 

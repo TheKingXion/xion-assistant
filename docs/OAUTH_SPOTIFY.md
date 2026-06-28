@@ -1,6 +1,6 @@
 # Spotify OAuth
 
-Status: foundation added in `v0.5.0`. Authorization URL generation and encrypted token storage exist. Real token exchange remains pending.
+Status: token exchange foundation added in `v0.6.0`. Authorization URL generation, callback exchange, profile id resolution, encrypted token storage and redacted account listing exist.
 
 Redirect:
 
@@ -19,4 +19,10 @@ Start URL:
 
 ```text
 GET /api/oauth/spotify/start?user_id=<USER_ID>
+```
+
+Callback:
+
+```text
+GET /api/oauth/spotify/callback?code=<CODE>&state=<STATE>
 ```
