@@ -18,6 +18,30 @@ export const tools: ToolDefinition[] = [
     riskLevel: "medium"
   },
   {
+    name: "spotify.get_playback",
+    description: "Read current Spotify playback state for the connected user.",
+    requiredScopes: ["user-read-playback-state"],
+    requiresAuth: true,
+    requiresConfirmation: false,
+    riskLevel: "low"
+  },
+  {
+    name: "spotify.play",
+    description: "Start Spotify playback after explicit confirmation.",
+    requiredScopes: ["user-modify-playback-state"],
+    requiresAuth: true,
+    requiresConfirmation: true,
+    riskLevel: "medium"
+  },
+  {
+    name: "spotify.pause",
+    description: "Pause Spotify playback after explicit confirmation.",
+    requiredScopes: ["user-modify-playback-state"],
+    requiresAuth: true,
+    requiresConfirmation: true,
+    riskLevel: "medium"
+  },
+  {
     name: "assistant.classify_intent",
     description: "Classify user intent and risk level.",
     requiredScopes: [],

@@ -75,6 +75,14 @@
 - Action confirmation executes `calendar.create_event` only after explicit confirmation.
 - Tool registry includes calendar list/create metadata.
 
+## v0.8.0
+
+- Spotify current playback endpoint.
+- Spotify play endpoint prepares pending action.
+- Spotify pause endpoint prepares pending action.
+- Action confirmation executes `spotify.play` and `spotify.pause` only after explicit confirmation.
+- Tool registry includes Spotify playback metadata.
+
 ## v0.2.0
 
 - Google OAuth.

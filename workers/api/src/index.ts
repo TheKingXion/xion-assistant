@@ -11,6 +11,7 @@ import { listGoogleCalendarEvents } from "./services/google-calendar";
 import { buildAuthorizationUrl, exchangeOAuthCode, isOAuthProvider, parseOAuthState } from "./services/oauth";
 import { createRepository } from "./services/repositories";
 import { createSessionToken, encryptToken, hashPassword, verifyPassword } from "./services/security";
+import { getSpotifyPlayback } from "./services/spotify";
 import { getTool, listTools } from "./services/tool-registry";
 import type { Env } from "./types";
 
@@ -39,7 +40,7 @@ app.get("/api/health", (c) =>
   c.json({
     ok: true,
     name: "xion-assistant-api",
-    version: "0.7.0",
+    version: "0.8.0",
     routes: {
       web: c.env.PUBLIC_WEB_URL,
       api: c.env.PUBLIC_API_URL
@@ -445,6 +446,74 @@ app.post(
     const action = await repository.createAction({
       userId: body.userId,
       toolName: "calendar.create_event",
+      riskLevel: "medium",
+      status: "pending_confirmation",
+      inputJson: JSON.stringify(input)
+    });
+    return c.json({ ok: true, action }, 201);
+  }
+);
+
+app.get("/api/spotify/player", async (c) => {
+  const userId = c.req.query("user_id");
+  if (!userId) return c.json({ ok: false, error: "user_id_required" }, 400);
+  const repository = createRepository(c.env.DB);
+  try {
+    const playback = await getSpotifyPlayback(repository, c.env, { userId });
+    return c.json({ ok: true, playback });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "spotify_playback_failed";
+    const status = message === "spotify_oauth_not_connected" ? 409 : 502;
+    return c.json({ ok: false, error: message }, status);
+  }
+});
+
+app.post(
+  "/api/spotify/player/play",
+  zValidator(
+    "json",
+    z.object({
+      userId: z.string().min(1),
+      deviceId: z.string().optional(),
+      contextUri: z.string().optional(),
+      uris: z.array(z.string()).optional()
+    })
+  ),
+  async (c) => {
+    const body = c.req.valid("json");
+    const repository = createRepository(c.env.DB);
+    const input: { deviceId?: string; contextUri?: string; uris?: string[] } = {};
+    if (body.deviceId !== undefined) input.deviceId = body.deviceId;
+    if (body.contextUri !== undefined) input.contextUri = body.contextUri;
+    if (body.uris !== undefined) input.uris = body.uris;
+    const action = await repository.createAction({
+      userId: body.userId,
+      toolName: "spotify.play",
+      riskLevel: "medium",
+      status: "pending_confirmation",
+      inputJson: JSON.stringify(input)
+    });
+    return c.json({ ok: true, action }, 201);
+  }
+);
+
+app.post(
+  "/api/spotify/player/pause",
+  zValidator(
+    "json",
+    z.object({
+      userId: z.string().min(1),
+      deviceId: z.string().optional()
+    })
+  ),
+  async (c) => {
+    const body = c.req.valid("json");
+    const repository = createRepository(c.env.DB);
+    const input: { deviceId?: string } = {};
+    if (body.deviceId !== undefined) input.deviceId = body.deviceId;
+    const action = await repository.createAction({
+      userId: body.userId,
+      toolName: "spotify.pause",
       riskLevel: "medium",
       status: "pending_confirmation",
       inputJson: JSON.stringify(input)

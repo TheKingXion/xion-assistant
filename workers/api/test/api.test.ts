@@ -32,7 +32,7 @@ describe("xion assistant api", () => {
     const json = (await res.json()) as any;
 
     expect(json.ok).toBe(true);
-    expect(json.version).toBe("0.7.0");
+    expect(json.version).toBe("0.8.0");
   });
 
   it("creates persisted session metadata on register", async () => {
@@ -442,6 +442,146 @@ describe("xion assistant api", () => {
     const confirmedJson = (await confirmed.json()) as any;
     expect(confirmedJson.action.status).toBe("completed");
     expect(JSON.parse(confirmedJson.action.resultJson).event.id).toBe("created-event");
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("reads spotify playback with decrypted oauth token", async () => {
+    await app.request(
+      "/api/oauth/spotify/token",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          userId: "spotify-playback-user",
+          providerUserId: "spotify-playback-id",
+          accessToken: "spotify-playback-token",
+          scopes: ["user-read-playback-state"]
+        }),
+        headers: { "content-type": "application/json" }
+      },
+      env
+    );
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe("https://api.spotify.com/v1/me/player");
+      expect(new Headers(init?.headers).get("authorization")).toBe("Bearer spotify-playback-token");
+      return new Response(JSON.stringify({ is_playing: true, item: { name: "Tema" } }), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await app.request("/api/spotify/player?user_id=spotify-playback-user", {}, env);
+    const json = (await res.json()) as any;
+
+    expect(json.ok).toBe(true);
+    expect(json.playback.is_playing).toBe(true);
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("prepares spotify play action and executes only after confirmation", async () => {
+    await app.request(
+      "/api/oauth/spotify/token",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          userId: "spotify-play-user",
+          providerUserId: "spotify-play-id",
+          accessToken: "spotify-play-token",
+          scopes: ["user-modify-playback-state"]
+        }),
+        headers: { "content-type": "application/json" }
+      },
+      env
+    );
+    const fetchMock = vi.fn(async (url: string | URL, init?: RequestInit) => {
+      expect(String(url)).toContain("https://api.spotify.com/v1/me/player/play");
+      expect(String(url)).toContain("device_id=device-1");
+      expect(init?.method).toBe("PUT");
+      expect(new Headers(init?.headers).get("authorization")).toBe("Bearer spotify-play-token");
+      expect(JSON.parse(String(init?.body)).uris[0]).toBe("spotify:track:1");
+      return new Response(null, { status: 204 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const prepared = await app.request(
+      "/api/spotify/player/play",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          userId: "spotify-play-user",
+          deviceId: "device-1",
+          uris: ["spotify:track:1"]
+        }),
+        headers: { "content-type": "application/json" }
+      },
+      env
+    );
+    const preparedJson = (await prepared.json()) as any;
+    expect(preparedJson.action.status).toBe("pending_confirmation");
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    const confirmed = await app.request(
+      `/api/actions/${preparedJson.action.id}/confirm`,
+      {
+        method: "POST",
+        body: JSON.stringify({ userId: "spotify-play-user" }),
+        headers: { "content-type": "application/json" }
+      },
+      env
+    );
+    const confirmedJson = (await confirmed.json()) as any;
+    expect(confirmedJson.action.status).toBe("completed");
+    expect(JSON.parse(confirmedJson.action.resultJson).status).toBe("spotify_play_started");
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("prepares spotify pause action and executes only after confirmation", async () => {
+    await app.request(
+      "/api/oauth/spotify/token",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          userId: "spotify-pause-user",
+          providerUserId: "spotify-pause-id",
+          accessToken: "spotify-pause-token",
+          scopes: ["user-modify-playback-state"]
+        }),
+        headers: { "content-type": "application/json" }
+      },
+      env
+    );
+    const fetchMock = vi.fn(async (url: string | URL, init?: RequestInit) => {
+      expect(String(url)).toContain("https://api.spotify.com/v1/me/player/pause");
+      expect(init?.method).toBe("PUT");
+      expect(new Headers(init?.headers).get("authorization")).toBe("Bearer spotify-pause-token");
+      return new Response(null, { status: 204 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const prepared = await app.request(
+      "/api/spotify/player/pause",
+      {
+        method: "POST",
+        body: JSON.stringify({ userId: "spotify-pause-user" }),
+        headers: { "content-type": "application/json" }
+      },
+      env
+    );
+    const preparedJson = (await prepared.json()) as any;
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    const confirmed = await app.request(
+      `/api/actions/${preparedJson.action.id}/confirm`,
+      {
+        method: "POST",
+        body: JSON.stringify({ userId: "spotify-pause-user" }),
+        headers: { "content-type": "application/json" }
+      },
+      env
+    );
+    const confirmedJson = (await confirmed.json()) as any;
+    expect(confirmedJson.action.status).toBe("completed");
+    expect(JSON.parse(confirmedJson.action.resultJson).status).toBe("spotify_paused");
     expect(fetchMock).toHaveBeenCalledOnce();
   });
 

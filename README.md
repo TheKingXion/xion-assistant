@@ -2,7 +2,7 @@
 
 Xion Assistant is a professional multiuser personal assistant base: Cloudflare Worker API, D1 schema, React web panel, voice settings, action confirmations, update manifests, tests, workflows, and required setup documentation.
 
-Version `v0.7.0` is a foundation, not the complete final assistant. It implements the first executable slice plus D1-backed persistence, contact routing, a mock/configurable AI Gateway, tool registry, OAuth callback token exchange, and Google Calendar list/create connector flow. Desktop/mobile installers, real TTS/STT providers, R2 uploads, and production deployments remain documented next phases.
+Version `v0.8.0` is a foundation, not the complete final assistant. It implements the first executable slice plus D1-backed persistence, contact routing, a mock/configurable AI Gateway, tool registry, OAuth callback token exchange, Google Calendar list/create connector flow, and Spotify playback controls behind explicit confirmation. Desktop/mobile installers, real TTS/STT providers, R2 uploads, and production deployments remain documented next phases.
 
 ## Stack
 

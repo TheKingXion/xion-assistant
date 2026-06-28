@@ -29,6 +29,8 @@ pnpm build
 - Missing OAuth provider secrets fail with explicit error.
 - Google Calendar list uses decrypted OAuth token.
 - Google Calendar create waits for explicit confirmation before fetch POST.
+- Spotify playback reads with decrypted OAuth token.
+- Spotify play/pause wait for explicit confirmation before fetch PUT.
 - Token encryption round-trip is covered.
 - Update manifest endpoint.
 - Repository abstraction uses D1 when `DB` binding exists and in-memory fallback during tests.

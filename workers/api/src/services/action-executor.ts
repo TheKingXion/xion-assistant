@@ -1,6 +1,7 @@
 import type { Env } from "../types";
 import { createGoogleCalendarEvent } from "./google-calendar";
 import type { Repository } from "./repositories";
+import { pauseSpotify, playSpotify, type SpotifyPauseInput, type SpotifyPlayInput } from "./spotify";
 
 export const executeConfirmedAction = async (
   repository: Repository,
@@ -36,6 +37,30 @@ export const executeConfirmedAction = async (
       result: {
         execution: "google_calendar_created",
         event: created
+      }
+    };
+  }
+
+  if (action.toolName === "spotify.play") {
+    const parsed = JSON.parse(action.inputJson) as SpotifyPlayInput;
+    const result = await playSpotify(repository, env, { userId: input.userId, playback: parsed });
+    return {
+      status: "completed" as const,
+      result: {
+        execution: "spotify_play",
+        ...result
+      }
+    };
+  }
+
+  if (action.toolName === "spotify.pause") {
+    const parsed = JSON.parse(action.inputJson) as SpotifyPauseInput;
+    const result = await pauseSpotify(repository, env, { userId: input.userId, playback: parsed });
+    return {
+      status: "completed" as const,
+      result: {
+        execution: "spotify_pause",
+        ...result
       }
     };
   }
