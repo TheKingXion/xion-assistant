@@ -13,7 +13,7 @@ describe("xion assistant api", () => {
     const json = (await res.json()) as any;
 
     expect(json.ok).toBe(true);
-    expect(json.version).toBe("0.2.0");
+    expect(json.version).toBe("0.3.0");
   });
 
   it("creates persisted session metadata on register", async () => {
@@ -82,6 +82,113 @@ describe("xion assistant api", () => {
     expect(json.action.status).toBe("pending_confirmation");
     expect(json.action.riskLevel).toBe("high");
     expect(json.audio.provider).toBe("mock");
+  });
+
+  it("resolves contact alias and preferred channel per user", async () => {
+    const created = await app.request(
+      "/api/contacts",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          userId: "contact-owner",
+          displayName: "Camila"
+        }),
+        headers: { "content-type": "application/json" }
+      },
+      env
+    );
+    const contact = ((await created.json()) as any).contact;
+
+    await app.request(
+      `/api/contacts/${contact.id}/aliases`,
+      {
+        method: "POST",
+        body: JSON.stringify({ userId: "contact-owner", alias: "mi esposa", confirmed: true }),
+        headers: { "content-type": "application/json" }
+      },
+      env
+    );
+    await app.request(
+      `/api/contacts/${contact.id}/channels`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          userId: "contact-owner",
+          channel: "whatsapp",
+          address: "+56911111111",
+          isPreferred: true
+        }),
+        headers: { "content-type": "application/json" }
+      },
+      env
+    );
+
+    const ownResolve = await app.request("/api/contacts/resolve?user_id=contact-owner&q=mi%20esposa", {}, env);
+    const otherResolve = await app.request("/api/contacts/resolve?user_id=other-contact-user&q=mi%20esposa", {}, env);
+
+    const ownJson = (await ownResolve.json()) as any;
+    expect(ownJson.resolved.contact.displayName).toBe("Camila");
+    expect(ownJson.resolved.preferredChannel.channel).toBe("whatsapp");
+    expect(otherResolve.status).toBe(404);
+  });
+
+  it("assistant uses contact alias and preferred channel before memory fallback", async () => {
+    const created = await app.request(
+      "/api/contacts",
+      {
+        method: "POST",
+        body: JSON.stringify({ userId: "router-user", displayName: "Camila Router" }),
+        headers: { "content-type": "application/json" }
+      },
+      env
+    );
+    const contact = ((await created.json()) as any).contact;
+    await app.request(
+      `/api/contacts/${contact.id}/aliases`,
+      {
+        method: "POST",
+        body: JSON.stringify({ userId: "router-user", alias: "mi esposa", confirmed: true }),
+        headers: { "content-type": "application/json" }
+      },
+      env
+    );
+    await app.request(
+      `/api/contacts/${contact.id}/channels`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          userId: "router-user",
+          channel: "whatsapp",
+          address: "+56922222222",
+          isPreferred: true
+        }),
+        headers: { "content-type": "application/json" }
+      },
+      env
+    );
+
+    const message = await app.request(
+      "/api/assistant/message",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          userId: "router-user",
+          message: "Mandale a mi esposa que voy llegando",
+          spokenResponse: false
+        }),
+        headers: { "content-type": "application/json" }
+      },
+      env
+    );
+    const json = (await message.json()) as any;
+    const action = await app.request(`/api/actions/${json.action.id}?user_id=router-user`, {}, env);
+    const actionJson = (await action.json()) as any;
+    const payload = JSON.parse(actionJson.action.inputJson);
+
+    expect(json.response).toContain("Camila Router");
+    expect(json.response).toContain("whatsapp");
+    expect(payload.channel).toBe("whatsapp");
+    expect(payload.address).toBe("+56922222222");
   });
 
   it("records confirmation but does not fake connector execution", async () => {

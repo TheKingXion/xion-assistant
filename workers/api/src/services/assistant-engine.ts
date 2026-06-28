@@ -1,6 +1,7 @@
 import type { RiskLevel } from "@xion-assistant/shared";
 import { mustConfirm } from "@xion-assistant/shared";
 import { synthesizeSpeech } from "@xion-assistant/voice";
+import { prepareCommunication } from "./communication-router";
 import type { Repository } from "./repositories";
 
 const extractWifeAliasMessage = (message: string) => {
@@ -34,8 +35,13 @@ export const handleAssistantMessage = async (
   const aliasIntent = extractWifeAliasMessage(input.message);
 
   if (aliasIntent) {
-    const memory = await repository.resolveMemory(input.userId, aliasIntent.alias);
-    if (!memory) {
+    const prepared = await prepareCommunication(repository, {
+      userId: input.userId,
+      recipientQuery: aliasIntent.alias,
+      message: aliasIntent.message
+    });
+    const fallbackMemory = prepared ? undefined : await repository.resolveMemory(input.userId, aliasIntent.alias);
+    if (!prepared && !fallbackMemory) {
       return {
         ok: true,
         status: "needs_clarification",
@@ -46,16 +52,20 @@ export const handleAssistantMessage = async (
     }
 
     const riskLevel = classifyRisk("communication.send_message");
-    const response = `Le enviare a ${memory.value}: "${aliasIntent.message}". Confirmas envio?`;
+    const recipient = prepared?.recipient ?? fallbackMemory?.value ?? aliasIntent.alias;
+    const channel = prepared?.channel ?? "preferred";
+    const response = `Le enviare a ${recipient} por ${channel}: "${aliasIntent.message}". Confirmas envio?`;
     const action = await repository.createAction({
       userId: input.userId,
       toolName: "communication.send_message",
       riskLevel,
       status: "pending_confirmation",
       inputJson: JSON.stringify({
-        recipient: memory.value,
+        recipient,
+        contactId: prepared?.contactId,
         message: aliasIntent.message,
-        channel: "preferred"
+        channel,
+        address: prepared?.address
       })
     });
     const savedPlan = await repository.createPlanWithSteps(
@@ -63,18 +73,18 @@ export const handleAssistantMessage = async (
         userId: input.userId,
         status: "pending_confirmation",
         title: "Enviar mensaje con confirmacion",
-        goal: `Enviar mensaje a ${memory.value}`,
+        goal: `Enviar mensaje a ${recipient}`,
         riskLevel
       },
       [
         {
           orderIndex: 1,
           title: "Resolver destinatario",
-          description: `Alias ${aliasIntent.alias} resuelto a ${memory.value}`,
-          toolName: "memory.resolve",
+          description: `Alias ${aliasIntent.alias} resuelto a ${recipient}`,
+          toolName: prepared ? "communication.resolve_contact" : "memory.resolve",
           status: "completed",
           requiresConfirmation: false,
-          resultJson: JSON.stringify({ contact: memory.value })
+          resultJson: JSON.stringify({ contact: recipient, channel })
         },
         {
           orderIndex: 2,

@@ -33,6 +33,40 @@ export type MemoryRecord = {
   createdAt: string;
 };
 
+export type ContactRecord = {
+  id: string;
+  userId: string;
+  displayName: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ContactAliasRecord = {
+  id: string;
+  userId: string;
+  contactId: string;
+  alias: string;
+  confirmed: boolean;
+  createdAt: string;
+};
+
+export type ContactChannelRecord = {
+  id: string;
+  userId: string;
+  contactId: string;
+  channel: string;
+  address: string;
+  isPreferred: boolean;
+  createdAt: string;
+};
+
+export type ResolvedContactRecord = {
+  contact: ContactRecord;
+  alias?: ContactAliasRecord;
+  preferredChannel?: ContactChannelRecord;
+};
+
 export type VoiceSettingsRecord = {
   userId: string;
   ttsEnabled: boolean;

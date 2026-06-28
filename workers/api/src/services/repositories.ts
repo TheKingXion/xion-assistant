@@ -3,7 +3,11 @@ import type {
   AssistantActionRecord,
   AssistantPlanRecord,
   AssistantPlanStepRecord,
+  ContactAliasRecord,
+  ContactChannelRecord,
+  ContactRecord,
   MemoryRecord,
+  ResolvedContactRecord,
   SessionRecord,
   UserRecord,
   VoiceSettingsRecord
@@ -14,6 +18,11 @@ export type Repository = {
   createUser(input: { email: string; displayName: string; passwordHash?: string }): Promise<UserRecord>;
   findUserByEmail(email: string): Promise<UserRecord | undefined>;
   createSession(input: { userId: string; tokenHash: string; deviceId?: string; expiresAt: string }): Promise<SessionRecord>;
+  createContact(input: { userId: string; displayName: string; notes?: string }): Promise<ContactRecord>;
+  listContactsForUser(userId: string): Promise<ContactRecord[]>;
+  createContactAlias(input: { userId: string; contactId: string; alias: string; confirmed: boolean }): Promise<ContactAliasRecord>;
+  createContactChannel(input: { userId: string; contactId: string; channel: string; address: string; isPreferred: boolean }): Promise<ContactChannelRecord>;
+  resolveContact(userId: string, query: string): Promise<ResolvedContactRecord | undefined>;
   createMemory(input: Omit<MemoryRecord, "id" | "createdAt">): Promise<MemoryRecord>;
   listMemoriesForUser(userId: string): Promise<MemoryRecord[]>;
   resolveMemory(userId: string, key: string): Promise<MemoryRecord | undefined>;
@@ -32,6 +41,9 @@ export type Repository = {
 export class InMemoryRepository implements Repository {
   private users = new Map<string, UserRecord>();
   private sessions = new Map<string, SessionRecord>();
+  private contacts = new Map<string, ContactRecord>();
+  private contactAliases = new Map<string, ContactAliasRecord>();
+  private contactChannels = new Map<string, ContactChannelRecord>();
   private memories = new Map<string, MemoryRecord>();
   private voiceSettings = new Map<string, VoiceSettingsRecord>();
   private actions = new Map<string, AssistantActionRecord>();
@@ -68,6 +80,82 @@ export class InMemoryRepository implements Repository {
     if (input.deviceId) session.deviceId = input.deviceId;
     this.sessions.set(session.id, session);
     return session;
+  }
+
+  async createContact(input: { userId: string; displayName: string; notes?: string }) {
+    const now = new Date().toISOString();
+    const contact: ContactRecord = {
+      id: createId("ctc"),
+      userId: input.userId,
+      displayName: input.displayName,
+      createdAt: now,
+      updatedAt: now
+    };
+    if (input.notes) contact.notes = input.notes;
+    this.contacts.set(contact.id, contact);
+    return contact;
+  }
+
+  async listContactsForUser(userId: string) {
+    return [...this.contacts.values()].filter((contact) => contact.userId === userId);
+  }
+
+  async createContactAlias(input: { userId: string; contactId: string; alias: string; confirmed: boolean }) {
+    const contact = this.contacts.get(input.contactId);
+    if (!contact || contact.userId !== input.userId) {
+      throw new Error("contact_not_found");
+    }
+    const alias: ContactAliasRecord = {
+      id: createId("cal"),
+      userId: input.userId,
+      contactId: input.contactId,
+      alias: input.alias,
+      confirmed: input.confirmed,
+      createdAt: new Date().toISOString()
+    };
+    this.contactAliases.set(alias.id, alias);
+    return alias;
+  }
+
+  async createContactChannel(input: { userId: string; contactId: string; channel: string; address: string; isPreferred: boolean }) {
+    const contact = this.contacts.get(input.contactId);
+    if (!contact || contact.userId !== input.userId) {
+      throw new Error("contact_not_found");
+    }
+    const channel: ContactChannelRecord = {
+      id: createId("cch"),
+      userId: input.userId,
+      contactId: input.contactId,
+      channel: input.channel,
+      address: input.address,
+      isPreferred: input.isPreferred,
+      createdAt: new Date().toISOString()
+    };
+    this.contactChannels.set(channel.id, channel);
+    return channel;
+  }
+
+  async resolveContact(userId: string, query: string) {
+    const normalized = query.toLowerCase();
+    const contact = [...this.contacts.values()].find(
+      (item) => item.userId === userId && item.displayName.toLowerCase() === normalized
+    );
+    const alias = [...this.contactAliases.values()].find(
+      (item) => item.userId === userId && item.alias.toLowerCase() === normalized && item.confirmed
+    );
+    const resolvedContact = alias ? this.contacts.get(alias.contactId) : contact;
+    if (!resolvedContact || resolvedContact.userId !== userId) return undefined;
+    const preferredChannel =
+      [...this.contactChannels.values()].find(
+        (item) => item.userId === userId && item.contactId === resolvedContact.id && item.isPreferred
+      ) ??
+      [...this.contactChannels.values()].find(
+        (item) => item.userId === userId && item.contactId === resolvedContact.id
+      );
+    const resolved: ResolvedContactRecord = { contact: resolvedContact };
+    if (alias) resolved.alias = alias;
+    if (preferredChannel) resolved.preferredChannel = preferredChannel;
+    return resolved;
   }
 
   async createMemory(input: Omit<MemoryRecord, "id" | "createdAt">) {
@@ -164,6 +252,9 @@ export class InMemoryRepository implements Repository {
 }
 
 type DbUserRow = { id: string; email: string; display_name: string; password_hash: string | null; created_at: string };
+type DbContactRow = { id: string; user_id: string; display_name: string; notes: string | null; created_at: string; updated_at: string };
+type DbContactAliasRow = { id: string; user_id: string; contact_id: string; alias: string; confirmed: number; created_at: string };
+type DbContactChannelRow = { id: string; user_id: string; contact_id: string; channel: string; address: string; is_preferred: number; created_at: string };
 type DbMemoryRow = { id: string; user_id: string; memory_type: string; key: string; value: string; confirmed: number; confidence: number; created_at: string };
 type DbVoiceSettingsRow = { user_id: string; tts_enabled: number; stt_enabled: number; wake_word_enabled: number; selected_voice_id: string; language: string; speed: number; pitch: number; volume: number; auto_play_responses: number };
 type DbActionRow = { id: string; user_id: string; conversation_id: string | null; tool_name: string; risk_level: "low" | "medium" | "high"; status: AssistantActionRecord["status"]; input_json: string; result_json: string | null; created_at: string; updated_at: string };
@@ -212,6 +303,94 @@ export class D1Repository implements Repository {
       .bind(session.id, session.userId, session.tokenHash, session.deviceId ?? null, session.expiresAt, session.createdAt)
       .run();
     return session;
+  }
+
+  async createContact(input: { userId: string; displayName: string; notes?: string }) {
+    const now = new Date().toISOString();
+    const contact: ContactRecord = {
+      id: createId("ctc"),
+      userId: input.userId,
+      displayName: input.displayName,
+      createdAt: now,
+      updatedAt: now
+    };
+    if (input.notes) contact.notes = input.notes;
+    await this.db
+      .prepare(`INSERT INTO contacts (id, user_id, display_name, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`)
+      .bind(contact.id, contact.userId, contact.displayName, contact.notes ?? null, contact.createdAt, contact.updatedAt)
+      .run();
+    return contact;
+  }
+
+  async listContactsForUser(userId: string) {
+    const result = await this.db
+      .prepare(`SELECT id, user_id, display_name, notes, created_at, updated_at FROM contacts WHERE user_id = ? ORDER BY display_name ASC`)
+      .bind(userId)
+      .all<DbContactRow>();
+    return result.results.map(mapContact);
+  }
+
+  async createContactAlias(input: { userId: string; contactId: string; alias: string; confirmed: boolean }) {
+    const contact = (await this.listContactsForUser(input.userId)).find((item) => item.id === input.contactId);
+    if (!contact) throw new Error("contact_not_found");
+    const record: ContactAliasRecord = {
+      id: createId("cal"),
+      userId: input.userId,
+      contactId: input.contactId,
+      alias: input.alias,
+      confirmed: input.confirmed,
+      createdAt: new Date().toISOString()
+    };
+    await this.db
+      .prepare(`INSERT INTO contact_aliases (id, user_id, contact_id, alias, confirmed, created_at) VALUES (?, ?, ?, ?, ?, ?)`)
+      .bind(record.id, record.userId, record.contactId, record.alias, record.confirmed ? 1 : 0, record.createdAt)
+      .run();
+    return record;
+  }
+
+  async createContactChannel(input: { userId: string; contactId: string; channel: string; address: string; isPreferred: boolean }) {
+    const contact = (await this.listContactsForUser(input.userId)).find((item) => item.id === input.contactId);
+    if (!contact) throw new Error("contact_not_found");
+    const record: ContactChannelRecord = {
+      id: createId("cch"),
+      userId: input.userId,
+      contactId: input.contactId,
+      channel: input.channel,
+      address: input.address,
+      isPreferred: input.isPreferred,
+      createdAt: new Date().toISOString()
+    };
+    await this.db
+      .prepare(`INSERT INTO contact_channels (id, user_id, contact_id, channel, address, is_preferred, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+      .bind(record.id, record.userId, record.contactId, record.channel, record.address, record.isPreferred ? 1 : 0, record.createdAt)
+      .run();
+    return record;
+  }
+
+  async resolveContact(userId: string, query: string) {
+    const contactRow = await this.db
+      .prepare(`SELECT id, user_id, display_name, notes, created_at, updated_at FROM contacts WHERE user_id = ? AND lower(display_name) = lower(?) LIMIT 1`)
+      .bind(userId, query)
+      .first<DbContactRow>();
+    const aliasRow = await this.db
+      .prepare(`SELECT id, user_id, contact_id, alias, confirmed, created_at FROM contact_aliases WHERE user_id = ? AND lower(alias) = lower(?) AND confirmed = 1 LIMIT 1`)
+      .bind(userId, query)
+      .first<DbContactAliasRow>();
+    const resolvedContactRow = aliasRow
+      ? await this.db
+          .prepare(`SELECT id, user_id, display_name, notes, created_at, updated_at FROM contacts WHERE id = ? AND user_id = ? LIMIT 1`)
+          .bind(aliasRow.contact_id, userId)
+          .first<DbContactRow>()
+      : contactRow;
+    if (!resolvedContactRow) return undefined;
+    const channelRow = await this.db
+      .prepare(`SELECT id, user_id, contact_id, channel, address, is_preferred, created_at FROM contact_channels WHERE user_id = ? AND contact_id = ? ORDER BY is_preferred DESC, created_at ASC LIMIT 1`)
+      .bind(userId, resolvedContactRow.id)
+      .first<DbContactChannelRow>();
+    const resolved: ResolvedContactRecord = { contact: mapContact(resolvedContactRow) };
+    if (aliasRow) resolved.alias = mapContactAlias(aliasRow);
+    if (channelRow) resolved.preferredChannel = mapContactChannel(channelRow);
+    return resolved;
   }
 
   async createMemory(input: Omit<MemoryRecord, "id" | "createdAt">) {
@@ -383,6 +562,37 @@ const mapUser = (row: DbUserRow): UserRecord => {
   if (row.password_hash) user.passwordHash = row.password_hash;
   return user;
 };
+
+const mapContact = (row: DbContactRow): ContactRecord => {
+  const contact: ContactRecord = {
+    id: row.id,
+    userId: row.user_id,
+    displayName: row.display_name,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+  if (row.notes) contact.notes = row.notes;
+  return contact;
+};
+
+const mapContactAlias = (row: DbContactAliasRow): ContactAliasRecord => ({
+  id: row.id,
+  userId: row.user_id,
+  contactId: row.contact_id,
+  alias: row.alias,
+  confirmed: row.confirmed === 1,
+  createdAt: row.created_at
+});
+
+const mapContactChannel = (row: DbContactChannelRow): ContactChannelRecord => ({
+  id: row.id,
+  userId: row.user_id,
+  contactId: row.contact_id,
+  channel: row.channel,
+  address: row.address,
+  isPreferred: row.is_preferred === 1,
+  createdAt: row.created_at
+});
 
 const mapMemory = (row: DbMemoryRow): MemoryRecord => ({
   id: row.id,

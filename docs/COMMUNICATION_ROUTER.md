@@ -1,6 +1,6 @@
 # Communication Router
 
-Planned module. `v0.0.1` only models safe confirmation behavior for `communication.send_message`.
+`v0.3.0` includes an initial Communication Router. It resolves contacts by display name or confirmed alias for the current `user_id`, selects the preferred channel, prepares the message, and leaves execution pending confirmation.
 
 ## Responsibilities
 
@@ -19,3 +19,5 @@ No unofficial WhatsApp/Instagram/TikTok APIs. Use OAuth, official APIs, deeplink
 ## Confirmation
 
 Sending messages is high risk. It must remain pending until user confirms.
+
+Confirmed actions still do not call external apps until a real connector exists.

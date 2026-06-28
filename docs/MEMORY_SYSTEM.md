@@ -32,3 +32,5 @@ Reads must always filter by `user_id`.
 - `mi hermano` -> `Diego`
 - `Clientes` -> `Gmail`
 - `voice_preference` -> `xion_voice_1`
+
+`v0.3.0` resolves contact aliases from `contact_aliases` first. `assistant_memories` remains fallback for older/general preferences.

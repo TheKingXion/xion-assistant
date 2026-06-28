@@ -34,6 +34,14 @@
 - Confirmation does not fake connector execution; missing connector marks action failed with explicit reason.
 - Assistant plans and steps persisted and readable by owner only.
 
+## v0.3.0
+
+- Contacts persisted through repository.
+- Contact aliases and channels persisted per user.
+- Contact resolver prevents cross-user alias leakage.
+- Communication Router prepares recipient/channel/message without external sends.
+- Assistant engine resolves `mi esposa` through contacts and preferred channels before memory fallback.
+
 ## v0.2.0
 
 - Google OAuth.

@@ -19,6 +19,8 @@ pnpm build
 - Confirming a message action records confirmation but does not fake external connector execution.
 - Plans are readable by owner only.
 - Memory update/delete requires owning `user_id`.
+- Contact aliases resolve only for owning user.
+- Assistant message flow uses preferred contact channel before memory fallback.
 - Update manifest endpoint.
 - Repository abstraction uses D1 when `DB` binding exists and in-memory fallback during tests.
 

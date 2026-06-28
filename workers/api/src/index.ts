@@ -25,7 +25,7 @@ app.get("/api/health", (c) =>
   c.json({
     ok: true,
     name: "xion-assistant-api",
-    version: "0.2.0",
+    version: "0.3.0",
     routes: {
       web: c.env.PUBLIC_WEB_URL,
       api: c.env.PUBLIC_API_URL
@@ -145,6 +145,103 @@ app.delete("/api/memory/:id", async (c) => {
   const deleted = await repository.deleteMemory(userId, c.req.param("id"));
   if (!deleted) return c.json({ ok: false, error: "memory_not_found" }, 404);
   return c.json({ ok: true, deleted: true });
+});
+
+app.get("/api/contacts", async (c) => {
+  const userId = c.req.query("user_id");
+  if (!userId) return c.json({ ok: false, error: "user_id_required" }, 400);
+  const repository = createRepository(c.env.DB);
+  return c.json({ ok: true, contacts: await repository.listContactsForUser(userId) });
+});
+
+app.post(
+  "/api/contacts",
+  zValidator(
+    "json",
+    z.object({
+      userId: z.string().min(1),
+      displayName: z.string().min(1),
+      notes: z.string().optional()
+    })
+  ),
+  async (c) => {
+    const body = c.req.valid("json");
+    const repository = createRepository(c.env.DB);
+    const input: { userId: string; displayName: string; notes?: string } = {
+      userId: body.userId,
+      displayName: body.displayName
+    };
+    if (body.notes !== undefined) input.notes = body.notes;
+    const contact = await repository.createContact(input);
+    return c.json({ ok: true, contact }, 201);
+  }
+);
+
+app.post(
+  "/api/contacts/:id/aliases",
+  zValidator(
+    "json",
+    z.object({
+      userId: z.string().min(1),
+      alias: z.string().min(1),
+      confirmed: z.boolean().default(true)
+    })
+  ),
+  async (c) => {
+    const body = c.req.valid("json");
+    const repository = createRepository(c.env.DB);
+    try {
+      const alias = await repository.createContactAlias({
+        userId: body.userId,
+        contactId: c.req.param("id"),
+        alias: body.alias,
+        confirmed: body.confirmed
+      });
+      return c.json({ ok: true, alias }, 201);
+    } catch {
+      return c.json({ ok: false, error: "contact_not_found" }, 404);
+    }
+  }
+);
+
+app.post(
+  "/api/contacts/:id/channels",
+  zValidator(
+    "json",
+    z.object({
+      userId: z.string().min(1),
+      channel: z.string().min(1),
+      address: z.string().min(1),
+      isPreferred: z.boolean().default(false)
+    })
+  ),
+  async (c) => {
+    const body = c.req.valid("json");
+    const repository = createRepository(c.env.DB);
+    try {
+      const channel = await repository.createContactChannel({
+        userId: body.userId,
+        contactId: c.req.param("id"),
+        channel: body.channel,
+        address: body.address,
+        isPreferred: body.isPreferred
+      });
+      return c.json({ ok: true, channel }, 201);
+    } catch {
+      return c.json({ ok: false, error: "contact_not_found" }, 404);
+    }
+  }
+);
+
+app.get("/api/contacts/resolve", async (c) => {
+  const userId = c.req.query("user_id");
+  const query = c.req.query("q");
+  if (!userId) return c.json({ ok: false, error: "user_id_required" }, 400);
+  if (!query) return c.json({ ok: false, error: "q_required" }, 400);
+  const repository = createRepository(c.env.DB);
+  const resolved = await repository.resolveContact(userId, query);
+  if (!resolved) return c.json({ ok: false, error: "contact_not_found" }, 404);
+  return c.json({ ok: true, resolved });
 });
 
 app.post("/api/assistant/message", zValidator("json", assistantRequestSchema), async (c) => {
