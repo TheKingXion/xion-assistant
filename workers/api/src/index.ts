@@ -13,6 +13,7 @@ import { createRepository } from "./services/repositories";
 import { createSessionToken, encryptToken, hashPassword, verifyPassword } from "./services/security";
 import { getSpotifyPlayback } from "./services/spotify";
 import { getTool, listTools } from "./services/tool-registry";
+import { listYouTubeSubscriptions, searchYouTube } from "./services/youtube";
 import type { Env } from "./types";
 
 export const app = new Hono<{ Bindings: Env }>();
@@ -40,7 +41,7 @@ app.get("/api/health", (c) =>
   c.json({
     ok: true,
     name: "xion-assistant-api",
-    version: "0.8.0",
+    version: "0.9.0",
     routes: {
       web: c.env.PUBLIC_WEB_URL,
       api: c.env.PUBLIC_API_URL
@@ -521,6 +522,42 @@ app.post(
     return c.json({ ok: true, action }, 201);
   }
 );
+
+app.get("/api/google/youtube/search", async (c) => {
+  const userId = c.req.query("user_id");
+  const query = c.req.query("q");
+  if (!userId) return c.json({ ok: false, error: "user_id_required" }, 400);
+  if (!query) return c.json({ ok: false, error: "q_required" }, 400);
+  const repository = createRepository(c.env.DB);
+  try {
+    const input: { userId: string; query: string; maxResults?: number } = { userId, query };
+    const maxResults = c.req.query("max_results");
+    if (maxResults !== undefined) input.maxResults = Number(maxResults);
+    const items = await searchYouTube(repository, c.env, input);
+    return c.json({ ok: true, items });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "youtube_search_failed";
+    const status = message === "google_oauth_not_connected" ? 409 : 502;
+    return c.json({ ok: false, error: message }, status);
+  }
+});
+
+app.get("/api/google/youtube/subscriptions", async (c) => {
+  const userId = c.req.query("user_id");
+  if (!userId) return c.json({ ok: false, error: "user_id_required" }, 400);
+  const repository = createRepository(c.env.DB);
+  try {
+    const input: { userId: string; maxResults?: number } = { userId };
+    const maxResults = c.req.query("max_results");
+    if (maxResults !== undefined) input.maxResults = Number(maxResults);
+    const subscriptions = await listYouTubeSubscriptions(repository, c.env, input);
+    return c.json({ ok: true, subscriptions });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "youtube_subscriptions_failed";
+    const status = message === "google_oauth_not_connected" ? 409 : 502;
+    return c.json({ ok: false, error: message }, status);
+  }
+});
 
 app.post("/api/assistant/message", zValidator("json", assistantRequestSchema), async (c) => {
   const body = c.req.valid("json");

@@ -31,6 +31,7 @@ pnpm build
 - Google Calendar create waits for explicit confirmation before fetch POST.
 - Spotify playback reads with decrypted OAuth token.
 - Spotify play/pause wait for explicit confirmation before fetch PUT.
+- YouTube search and subscriptions read with decrypted Google OAuth token.
 - Token encryption round-trip is covered.
 - Update manifest endpoint.
 - Repository abstraction uses D1 when `DB` binding exists and in-memory fallback during tests.

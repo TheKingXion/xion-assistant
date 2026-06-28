@@ -1,6 +1,6 @@
 import type { Env } from "../types";
-import { decryptToken } from "./security";
 import type { Repository } from "./repositories";
+import { getGoogleAccessToken } from "./google-auth";
 
 export type CalendarEventInput = {
   summary: string;
@@ -16,13 +16,6 @@ export type CalendarEvent = {
   htmlLink?: string;
   start?: unknown;
   end?: unknown;
-};
-
-const getGoogleAccessToken = async (repository: Repository, env: Env, userId: string) => {
-  if (!env.TOKEN_ENCRYPTION_KEY) throw new Error("token_encryption_key_required");
-  const account = await repository.getOAuthAccountSecrets(userId, "google");
-  if (!account?.encryptedAccessToken) throw new Error("google_oauth_not_connected");
-  return decryptToken(account.encryptedAccessToken, env.TOKEN_ENCRYPTION_KEY);
 };
 
 export const listGoogleCalendarEvents = async (

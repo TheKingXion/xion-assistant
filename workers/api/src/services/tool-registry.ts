@@ -42,6 +42,22 @@ export const tools: ToolDefinition[] = [
     riskLevel: "medium"
   },
   {
+    name: "youtube.search",
+    description: "Search YouTube videos for the connected Google account.",
+    requiredScopes: ["https://www.googleapis.com/auth/youtube.readonly"],
+    requiresAuth: true,
+    requiresConfirmation: false,
+    riskLevel: "low"
+  },
+  {
+    name: "youtube.list_subscriptions",
+    description: "List YouTube channel subscriptions for the connected Google account.",
+    requiredScopes: ["https://www.googleapis.com/auth/youtube.readonly"],
+    requiresAuth: true,
+    requiresConfirmation: false,
+    riskLevel: "low"
+  },
+  {
     name: "assistant.classify_intent",
     description: "Classify user intent and risk level.",
     requiredScopes: [],

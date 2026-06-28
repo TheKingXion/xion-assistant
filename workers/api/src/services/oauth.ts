@@ -26,7 +26,13 @@ export const getOAuthProviderConfig = (env: Env, provider: OAuthProvider): Provi
     const config: ProviderConfig = {
       authorizationUrl: "https://accounts.google.com/o/oauth2/v2/auth",
       tokenUrl: "https://oauth2.googleapis.com/token",
-      defaultScopes: ["openid", "email", "profile", "https://www.googleapis.com/auth/calendar.events"]
+      defaultScopes: [
+        "openid",
+        "email",
+        "profile",
+        "https://www.googleapis.com/auth/calendar.events",
+        "https://www.googleapis.com/auth/youtube.readonly"
+      ]
     };
     if (env.GOOGLE_CLIENT_ID !== undefined) config.clientId = env.GOOGLE_CLIENT_ID;
     if (env.GOOGLE_CLIENT_SECRET !== undefined) config.clientSecret = env.GOOGLE_CLIENT_SECRET;

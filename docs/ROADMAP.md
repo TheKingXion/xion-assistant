@@ -83,6 +83,14 @@
 - Action confirmation executes `spotify.play` and `spotify.pause` only after explicit confirmation.
 - Tool registry includes Spotify playback metadata.
 
+## v0.9.0
+
+- Shared Google OAuth token helper for Google connectors.
+- YouTube search endpoint.
+- YouTube subscriptions endpoint.
+- Google OAuth default scopes include YouTube readonly.
+- Tool registry includes YouTube read metadata.
+
 ## v0.2.0
 
 - Google OAuth.

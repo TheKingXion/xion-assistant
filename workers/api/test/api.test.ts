@@ -32,7 +32,7 @@ describe("xion assistant api", () => {
     const json = (await res.json()) as any;
 
     expect(json.ok).toBe(true);
-    expect(json.version).toBe("0.8.0");
+    expect(json.version).toBe("0.9.0");
   });
 
   it("creates persisted session metadata on register", async () => {
@@ -582,6 +582,77 @@ describe("xion assistant api", () => {
     const confirmedJson = (await confirmed.json()) as any;
     expect(confirmedJson.action.status).toBe("completed");
     expect(JSON.parse(confirmedJson.action.resultJson).status).toBe("spotify_paused");
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("searches youtube with decrypted google oauth token", async () => {
+    await app.request(
+      "/api/oauth/google/token",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          userId: "youtube-search-user",
+          providerUserId: "google-youtube-search-user",
+          accessToken: "youtube-search-token",
+          scopes: ["https://www.googleapis.com/auth/youtube.readonly"]
+        }),
+        headers: { "content-type": "application/json" }
+      },
+      env
+    );
+    const fetchMock = vi.fn(async (url: string | URL, init?: RequestInit) => {
+      const requestUrl = new URL(String(url));
+      expect(requestUrl.pathname).toBe("/youtube/v3/search");
+      expect(requestUrl.searchParams.get("q")).toBe("xion");
+      expect(requestUrl.searchParams.get("type")).toBe("video");
+      expect(new Headers(init?.headers).get("authorization")).toBe("Bearer youtube-search-token");
+      return new Response(JSON.stringify({ items: [{ id: { videoId: "vid-1" }, snippet: { title: "Xion" } }] }), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await app.request("/api/google/youtube/search?user_id=youtube-search-user&q=xion", {}, env);
+    const json = (await res.json()) as any;
+
+    expect(json.ok).toBe(true);
+    expect(json.items[0].id.videoId).toBe("vid-1");
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("lists youtube subscriptions with decrypted google oauth token", async () => {
+    await app.request(
+      "/api/oauth/google/token",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          userId: "youtube-sub-user",
+          providerUserId: "google-youtube-sub-user",
+          accessToken: "youtube-sub-token",
+          scopes: ["https://www.googleapis.com/auth/youtube.readonly"]
+        }),
+        headers: { "content-type": "application/json" }
+      },
+      env
+    );
+    const fetchMock = vi.fn(async (url: string | URL, init?: RequestInit) => {
+      const requestUrl = new URL(String(url));
+      expect(requestUrl.pathname).toBe("/youtube/v3/subscriptions");
+      expect(requestUrl.searchParams.get("mine")).toBe("true");
+      expect(new Headers(init?.headers).get("authorization")).toBe("Bearer youtube-sub-token");
+      return new Response(JSON.stringify({ items: [{ id: "sub-1", snippet: { title: "Canal" } }] }), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await app.request("/api/google/youtube/subscriptions?user_id=youtube-sub-user", {}, env);
+    const json = (await res.json()) as any;
+
+    expect(json.ok).toBe(true);
+    expect(json.subscriptions[0].id).toBe("sub-1");
     expect(fetchMock).toHaveBeenCalledOnce();
   });
 

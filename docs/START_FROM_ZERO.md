@@ -1,6 +1,6 @@
 # START FROM ZERO
 
-Estado: `v0.8.0` foundation. API, web, migracion D1, D1-backed users/sessions/memory/contacts/voice/actions/plans/oauth, OAuth token exchange, Google Calendar connector, Spotify playback connector, AI Gateway mock/configurable, tool registry, tests, scripts y workflows existen. Deploy real requiere Cloudflare/GitHub secrets.
+Estado: `v0.9.0` foundation. API, web, migracion D1, D1-backed users/sessions/memory/contacts/voice/actions/plans/oauth, OAuth token exchange, Google Calendar connector, Spotify playback connector, YouTube read connector, AI Gateway mock/configurable, tool registry, tests, scripts y workflows existen. Deploy real requiere Cloudflare/GitHub secrets.
 
 ## 1. Requisitos previos
 
@@ -376,6 +376,7 @@ Ver `docs/TROUBLESHOOTING.md`.
 - [x] OAuth callback token exchange Google/Spotify con perfil provider id.
 - [x] Google Calendar list events y create event con confirmacion.
 - [x] Spotify playback read y play/pause con confirmacion.
+- [x] YouTube search y subscriptions read con Google OAuth.
 - [x] Confirmacion requerida para accion de alto riesgo.
 - [x] Endpoint updates.
 - [x] Workflows.

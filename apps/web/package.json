@@ -1,6 +1,6 @@
 {
   "name": "@xion-assistant/web",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
