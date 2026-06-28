@@ -10,11 +10,11 @@ Session token foundation exists. Production needs refresh tokens, revocation and
 
 ## OAuth
 
-Tables and secrets are prepared. Google/Spotify OAuth flows are pending.
+Google/Spotify OAuth start URLs and encrypted token storage exist. Real token exchange remains pending.
 
 ## Token Encryption
 
-OAuth tokens must be encrypted using `TOKEN_ENCRYPTION_KEY`. Never log tokens.
+OAuth tokens are encrypted with AES-GCM using `TOKEN_ENCRYPTION_KEY`. API list responses are redacted and must never return access/refresh tokens.
 
 ## Confirmations
 

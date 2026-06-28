@@ -50,6 +50,15 @@
 - Tool registry added with risk/auth/confirmation metadata.
 - Assistant Engine now includes AI usage metadata in generated plans.
 
+## v0.5.0
+
+- OAuth provider URL builder for Google and Spotify.
+- OAuth callback guard with explicit token exchange pending state.
+- AES-GCM token encryption helpers.
+- OAuth account persistence through repository.
+- Redacted connected-account listing by `user_id`.
+- OAuth disconnect endpoint.
+
 ## v0.2.0
 
 - Google OAuth.

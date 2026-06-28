@@ -13,6 +13,10 @@ export type Env = {
   AI_TTS_DEFAULT_VOICE?: string;
   AI_TTS_DEFAULT_LANGUAGE?: string;
   AI_TTS_DEFAULT_SPEED?: string;
+  GOOGLE_CLIENT_ID?: string;
+  GOOGLE_CLIENT_SECRET?: string;
+  SPOTIFY_CLIENT_ID?: string;
+  SPOTIFY_CLIENT_SECRET?: string;
 };
 
 export type UserRecord = {
@@ -66,6 +70,18 @@ export type ResolvedContactRecord = {
   contact: ContactRecord;
   alias?: ContactAliasRecord;
   preferredChannel?: ContactChannelRecord;
+};
+
+export type OAuthProvider = "google" | "spotify";
+
+export type OAuthAccountRecord = {
+  id: string;
+  userId: string;
+  provider: OAuthProvider;
+  providerUserId: string;
+  scopes: string[];
+  expiresAt?: string;
+  createdAt: string;
 };
 
 export type VoiceSettingsRecord = {

@@ -23,6 +23,9 @@ pnpm build
 - Assistant message flow uses preferred contact channel before memory fallback.
 - AI Gateway mock classifies high-risk send-message requests.
 - Tool registry exposes confirmation metadata.
+- OAuth start URL generation does not expose client secrets.
+- OAuth account list is redacted and isolated by `user_id`.
+- Token encryption round-trip is covered.
 - Update manifest endpoint.
 - Repository abstraction uses D1 when `DB` binding exists and in-memory fallback during tests.
 

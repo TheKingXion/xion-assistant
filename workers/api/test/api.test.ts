@@ -4,7 +4,8 @@ import { app } from "../src/index";
 const env = {
   PUBLIC_WEB_URL: "http://localhost:5173",
   PUBLIC_API_URL: "http://localhost:8787",
-  JWT_SECRET: "local-dev-secret-change-me-32-chars"
+  JWT_SECRET: "local-dev-secret-change-me-32-chars",
+  TOKEN_ENCRYPTION_KEY: "local-token-encryption-key-32-chars"
 };
 
 describe("xion assistant api", () => {
@@ -13,7 +14,7 @@ describe("xion assistant api", () => {
     const json = (await res.json()) as any;
 
     expect(json.ok).toBe(true);
-    expect(json.version).toBe("0.4.0");
+    expect(json.version).toBe("0.5.0");
   });
 
   it("creates persisted session metadata on register", async () => {
@@ -235,6 +236,67 @@ describe("xion assistant api", () => {
     expect(json.ok).toBe(true);
     expect(json.tool.riskLevel).toBe("high");
     expect(json.tool.requiresConfirmation).toBe(true);
+  });
+
+  it("builds oauth authorization urls without exposing client secrets", async () => {
+    const res = await app.request("/api/oauth/google/start?user_id=oauth-user", {}, env);
+    const json = (await res.json()) as any;
+
+    expect(json.ok).toBe(true);
+    expect(json.authorizationUrl).toContain("accounts.google.com");
+    expect(json.authorizationUrl).toContain("state=");
+    expect(json.authorizationUrl).not.toContain("secret");
+    expect(json.configured).toBe(false);
+  });
+
+  it("stores oauth accounts redacted and isolated by user", async () => {
+    const stored = await app.request(
+      "/api/oauth/google/token",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          userId: "oauth-owner",
+          providerUserId: "google-123",
+          accessToken: "access-secret",
+          refreshToken: "refresh-secret",
+          scopes: ["calendar"]
+        }),
+        headers: { "content-type": "application/json" }
+      },
+      env
+    );
+    const storedJson = (await stored.json()) as any;
+    const owner = await app.request("/api/oauth/accounts?user_id=oauth-owner", {}, env);
+    const other = await app.request("/api/oauth/accounts?user_id=oauth-other", {}, env);
+    const ownerJson = (await owner.json()) as any;
+    const otherJson = (await other.json()) as any;
+
+    expect(storedJson.ok).toBe(true);
+    expect(JSON.stringify(storedJson)).not.toContain("access-secret");
+    expect(ownerJson.accounts).toHaveLength(1);
+    expect(otherJson.accounts).toHaveLength(0);
+  });
+
+  it("disconnects oauth accounts by provider and owner", async () => {
+    await app.request(
+      "/api/oauth/spotify/token",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          userId: "oauth-disconnect",
+          providerUserId: "spotify-123",
+          accessToken: "spotify-secret",
+          scopes: ["playback"]
+        }),
+        headers: { "content-type": "application/json" }
+      },
+      env
+    );
+    const deleted = await app.request("/api/oauth/spotify?user_id=oauth-disconnect", { method: "DELETE" }, env);
+    const listed = await app.request("/api/oauth/accounts?user_id=oauth-disconnect", {}, env);
+
+    expect(((await deleted.json()) as any).disconnected).toBe(true);
+    expect(((await listed.json()) as any).accounts).toHaveLength(0);
   });
 
   it("records confirmation but does not fake connector execution", async () => {

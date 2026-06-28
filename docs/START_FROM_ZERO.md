@@ -1,6 +1,6 @@
 # START FROM ZERO
 
-Estado: `v0.4.0` foundation. API, web, migracion D1, D1-backed users/sessions/memory/contacts/voice/actions/plans, AI Gateway mock/configurable, tool registry, tests, scripts y workflows existen. Deploy real requiere Cloudflare/GitHub secrets.
+Estado: `v0.5.0` foundation. API, web, migracion D1, D1-backed users/sessions/memory/contacts/voice/actions/plans/oauth, AI Gateway mock/configurable, tool registry, tests, scripts y workflows existen. Deploy real requiere Cloudflare/GitHub secrets.
 
 ## 1. Requisitos previos
 
@@ -371,6 +371,8 @@ Ver `docs/TROUBLESHOOTING.md`.
 - [x] Communication router inicial para preparar mensajes por canal preferido.
 - [x] AI Gateway mock/configurable para classify/plan/text.
 - [x] Tool registry con risk level y confirmation metadata.
+- [x] OAuth start URLs para Google/Spotify.
+- [x] OAuth token storage cifrado y redacted por `user_id`.
 - [x] Confirmacion requerida para accion de alto riesgo.
 - [x] Endpoint updates.
 - [x] Workflows.
