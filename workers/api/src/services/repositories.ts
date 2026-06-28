@@ -8,6 +8,7 @@ import type {
   ContactRecord,
   MemoryRecord,
   OAuthAccountRecord,
+  OAuthAccountSecretRecord,
   OAuthProvider,
   ResolvedContactRecord,
   SessionRecord,
@@ -35,6 +36,7 @@ export type Repository = {
     expiresAt?: string;
   }): Promise<OAuthAccountRecord>;
   listOAuthAccountsForUser(userId: string): Promise<OAuthAccountRecord[]>;
+  getOAuthAccountSecrets(userId: string, provider: OAuthProvider): Promise<OAuthAccountSecretRecord | undefined>;
   disconnectOAuthAccount(userId: string, provider: OAuthProvider): Promise<boolean>;
   createMemory(input: Omit<MemoryRecord, "id" | "createdAt">): Promise<MemoryRecord>;
   listMemoriesForUser(userId: string): Promise<MemoryRecord[]>;
@@ -205,6 +207,12 @@ export class InMemoryRepository implements Repository {
       .map(redactOAuthAccount);
   }
 
+  async getOAuthAccountSecrets(userId: string, provider: OAuthProvider) {
+    return [...this.oauthAccounts.values()].find(
+      (account) => account.userId === userId && account.provider === provider
+    );
+  }
+
   async disconnectOAuthAccount(userId: string, provider: OAuthProvider) {
     const account = [...this.oauthAccounts.values()].find(
       (item) => item.userId === userId && item.provider === provider
@@ -311,6 +319,7 @@ type DbContactRow = { id: string; user_id: string; display_name: string; notes: 
 type DbContactAliasRow = { id: string; user_id: string; contact_id: string; alias: string; confirmed: number; created_at: string };
 type DbContactChannelRow = { id: string; user_id: string; contact_id: string; channel: string; address: string; is_preferred: number; created_at: string };
 type DbOAuthRow = { id: string; user_id: string; provider: OAuthProvider; provider_user_id: string; scopes: string; expires_at: string | null; created_at: string };
+type DbOAuthSecretRow = DbOAuthRow & { encrypted_access_token: string | null; encrypted_refresh_token: string | null };
 type DbMemoryRow = { id: string; user_id: string; memory_type: string; key: string; value: string; confirmed: number; confidence: number; created_at: string };
 type DbVoiceSettingsRow = { user_id: string; tts_enabled: number; stt_enabled: number; wake_word_enabled: number; selected_voice_id: string; language: string; speed: number; pitch: number; volume: number; auto_play_responses: number };
 type DbActionRow = { id: string; user_id: string; conversation_id: string | null; tool_name: string; risk_level: "low" | "medium" | "high"; status: AssistantActionRecord["status"]; input_json: string; result_json: string | null; created_at: string; updated_at: string };
@@ -503,6 +512,19 @@ export class D1Repository implements Repository {
       .bind(userId)
       .all<DbOAuthRow>();
     return result.results.map(mapOAuthAccount);
+  }
+
+  async getOAuthAccountSecrets(userId: string, provider: OAuthProvider) {
+    const row = await this.db
+      .prepare(
+        `SELECT id, user_id, provider, provider_user_id, scopes, expires_at, created_at, encrypted_access_token, encrypted_refresh_token
+         FROM oauth_accounts
+         WHERE user_id = ? AND provider = ?
+         LIMIT 1`
+      )
+      .bind(userId, provider)
+      .first<DbOAuthSecretRow>();
+    return row ? mapOAuthAccountSecret(row) : undefined;
   }
 
   async disconnectOAuthAccount(userId: string, provider: OAuthProvider) {
@@ -724,6 +746,15 @@ const mapOAuthAccount = (row: DbOAuthRow): OAuthAccountRecord => {
     createdAt: row.created_at
   };
   if (row.expires_at) account.expiresAt = row.expires_at;
+  return account;
+};
+
+const mapOAuthAccountSecret = (row: DbOAuthSecretRow): OAuthAccountSecretRecord => {
+  const account: OAuthAccountSecretRecord = {
+    ...mapOAuthAccount(row)
+  };
+  if (row.encrypted_access_token) account.encryptedAccessToken = row.encrypted_access_token;
+  if (row.encrypted_refresh_token) account.encryptedRefreshToken = row.encrypted_refresh_token;
   return account;
 };
 

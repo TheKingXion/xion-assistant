@@ -32,7 +32,7 @@ describe("xion assistant api", () => {
     const json = (await res.json()) as any;
 
     expect(json.ok).toBe(true);
-    expect(json.version).toBe("0.6.0");
+    expect(json.version).toBe("0.7.0");
   });
 
   it("creates persisted session metadata on register", async () => {
@@ -352,6 +352,97 @@ describe("xion assistant api", () => {
 
     expect(callback.status).toBe(501);
     expect(callbackJson.error).toBe("oauth_provider_not_configured");
+  });
+
+  it("lists google calendar events with decrypted oauth token", async () => {
+    await app.request(
+      "/api/oauth/google/token",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          userId: "calendar-list-user",
+          providerUserId: "google-calendar-user",
+          accessToken: "calendar-access-token",
+          scopes: ["https://www.googleapis.com/auth/calendar.events"]
+        }),
+        headers: { "content-type": "application/json" }
+      },
+      env
+    );
+    const fetchMock = vi.fn(async (url: string | URL, init?: RequestInit) => {
+      expect(String(url)).toContain("calendar/v3/calendars/primary/events");
+      expect(new Headers(init?.headers).get("authorization")).toBe("Bearer calendar-access-token");
+      return new Response(JSON.stringify({ items: [{ id: "evt-1", summary: "Demo" }] }), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await app.request("/api/google/calendar/events?user_id=calendar-list-user", {}, env);
+    const json = (await res.json()) as any;
+
+    expect(json.ok).toBe(true);
+    expect(json.events[0].id).toBe("evt-1");
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("prepares calendar create action and executes only after confirmation", async () => {
+    await app.request(
+      "/api/oauth/google/token",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          userId: "calendar-create-user",
+          providerUserId: "google-calendar-create-user",
+          accessToken: "calendar-create-token",
+          scopes: ["https://www.googleapis.com/auth/calendar.events"]
+        }),
+        headers: { "content-type": "application/json" }
+      },
+      env
+    );
+    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
+      expect(init?.method).toBe("POST");
+      expect(new Headers(init?.headers).get("authorization")).toBe("Bearer calendar-create-token");
+      return new Response(JSON.stringify({ id: "created-event", summary: "Reunion" }), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const prepared = await app.request(
+      "/api/google/calendar/events",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          userId: "calendar-create-user",
+          summary: "Reunion",
+          start: "2026-06-29T10:00:00-04:00",
+          end: "2026-06-29T11:00:00-04:00"
+        }),
+        headers: { "content-type": "application/json" }
+      },
+      env
+    );
+    const preparedJson = (await prepared.json()) as any;
+    expect(preparedJson.action.status).toBe("pending_confirmation");
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    const confirmed = await app.request(
+      `/api/actions/${preparedJson.action.id}/confirm`,
+      {
+        method: "POST",
+        body: JSON.stringify({ userId: "calendar-create-user" }),
+        headers: { "content-type": "application/json" }
+      },
+      env
+    );
+    const confirmedJson = (await confirmed.json()) as any;
+    expect(confirmedJson.action.status).toBe("completed");
+    expect(JSON.parse(confirmedJson.action.resultJson).event.id).toBe("created-event");
+    expect(fetchMock).toHaveBeenCalledOnce();
   });
 
   it("records confirmation but does not fake connector execution", async () => {

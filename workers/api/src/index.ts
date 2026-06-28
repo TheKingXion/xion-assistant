@@ -5,7 +5,9 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { z } from "zod";
 import { createAiGateway, type AiGatewayConfig } from "./services/ai-gateway";
+import { executeConfirmedAction } from "./services/action-executor";
 import { handleAssistantMessage } from "./services/assistant-engine";
+import { listGoogleCalendarEvents } from "./services/google-calendar";
 import { buildAuthorizationUrl, exchangeOAuthCode, isOAuthProvider, parseOAuthState } from "./services/oauth";
 import { createRepository } from "./services/repositories";
 import { createSessionToken, encryptToken, hashPassword, verifyPassword } from "./services/security";
@@ -37,7 +39,7 @@ app.get("/api/health", (c) =>
   c.json({
     ok: true,
     name: "xion-assistant-api",
-    version: "0.6.0",
+    version: "0.7.0",
     routes: {
       web: c.env.PUBLIC_WEB_URL,
       api: c.env.PUBLIC_API_URL
@@ -387,6 +389,70 @@ app.delete("/api/oauth/:provider", async (c) => {
   return c.json({ ok: true, disconnected: true });
 });
 
+app.get("/api/google/calendar/events", async (c) => {
+  const userId = c.req.query("user_id");
+  if (!userId) return c.json({ ok: false, error: "user_id_required" }, 400);
+  const repository = createRepository(c.env.DB);
+  try {
+    const input: { userId: string; calendarId?: string; timeMin?: string; maxResults?: number } = { userId };
+    const calendarId = c.req.query("calendar_id");
+    const timeMin = c.req.query("time_min");
+    const maxResults = c.req.query("max_results");
+    if (calendarId !== undefined) input.calendarId = calendarId;
+    if (timeMin !== undefined) input.timeMin = timeMin;
+    if (maxResults !== undefined) input.maxResults = Number(maxResults);
+    const events = await listGoogleCalendarEvents(repository, c.env, input);
+    return c.json({ ok: true, events });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "google_calendar_list_failed";
+    const status = message === "google_oauth_not_connected" ? 409 : 502;
+    return c.json({ ok: false, error: message }, status);
+  }
+});
+
+app.post(
+  "/api/google/calendar/events",
+  zValidator(
+    "json",
+    z.object({
+      userId: z.string().min(1),
+      calendarId: z.string().optional(),
+      summary: z.string().min(1),
+      description: z.string().optional(),
+      start: z.string().min(1),
+      end: z.string().min(1),
+      timeZone: z.string().optional()
+    })
+  ),
+  async (c) => {
+    const body = c.req.valid("json");
+    const repository = createRepository(c.env.DB);
+    const event: {
+      summary: string;
+      description?: string;
+      start: string;
+      end: string;
+      timeZone?: string;
+    } = {
+      summary: body.summary,
+      start: body.start,
+      end: body.end
+    };
+    if (body.description !== undefined) event.description = body.description;
+    if (body.timeZone !== undefined) event.timeZone = body.timeZone;
+    const input: { calendarId?: string; event: typeof event } = { event };
+    if (body.calendarId !== undefined) input.calendarId = body.calendarId;
+    const action = await repository.createAction({
+      userId: body.userId,
+      toolName: "calendar.create_event",
+      riskLevel: "medium",
+      status: "pending_confirmation",
+      inputJson: JSON.stringify(input)
+    });
+    return c.json({ ok: true, action }, 201);
+  }
+);
+
 app.post("/api/assistant/message", zValidator("json", assistantRequestSchema), async (c) => {
   const body = c.req.valid("json");
   const repository = createRepository(c.env.DB);
@@ -449,13 +515,25 @@ app.post(
       decision: "confirmed",
       confirmedPayloadJson: JSON.stringify(body.payload ?? JSON.parse(action.inputJson))
     });
-    const updated = await repository.updateActionStatus(
-      body.userId,
-      action.id,
-      "failed",
-      JSON.stringify({ confirmationRecorded: true, execution: "connector_not_configured" })
-    );
-    return c.json({ ok: true, confirmation, action: updated });
+    try {
+      const execution = await executeConfirmedAction(repository, c.env, { userId: body.userId, actionId: action.id });
+      const updated = await repository.updateActionStatus(
+        body.userId,
+        action.id,
+        execution.status,
+        JSON.stringify(execution.result)
+      );
+      return c.json({ ok: true, confirmation, action: updated });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "action_execution_failed";
+      const updated = await repository.updateActionStatus(
+        body.userId,
+        action.id,
+        "failed",
+        JSON.stringify({ confirmationRecorded: true, execution: message })
+      );
+      return c.json({ ok: true, confirmation, action: updated });
+    }
   }
 );
 

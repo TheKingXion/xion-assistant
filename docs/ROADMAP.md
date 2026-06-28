@@ -67,6 +67,14 @@
 - Exchanged tokens are encrypted before repository storage.
 - Missing provider secrets return explicit non-success error.
 
+## v0.7.0
+
+- Internal OAuth secret retrieval for connectors.
+- Google Calendar list events endpoint.
+- Google Calendar create event prepares pending action.
+- Action confirmation executes `calendar.create_event` only after explicit confirmation.
+- Tool registry includes calendar list/create metadata.
+
 ## v0.2.0
 
 - Google OAuth.

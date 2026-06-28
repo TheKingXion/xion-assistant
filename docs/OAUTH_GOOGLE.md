@@ -32,3 +32,12 @@ Callback:
 ```text
 GET /api/oauth/google/callback?code=<CODE>&state=<STATE>
 ```
+
+Calendar events:
+
+```text
+GET /api/google/calendar/events?user_id=<USER_ID>
+POST /api/google/calendar/events
+```
+
+Creating an event returns a pending action. Confirm through `/api/actions/:id/confirm`.

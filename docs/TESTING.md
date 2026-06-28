@@ -27,6 +27,8 @@ pnpm build
 - OAuth account list is redacted and isolated by `user_id`.
 - OAuth callback exchanges mocked token responses and redacts returned account.
 - Missing OAuth provider secrets fail with explicit error.
+- Google Calendar list uses decrypted OAuth token.
+- Google Calendar create waits for explicit confirmation before fetch POST.
 - Token encryption round-trip is covered.
 - Update manifest endpoint.
 - Repository abstraction uses D1 when `DB` binding exists and in-memory fallback during tests.

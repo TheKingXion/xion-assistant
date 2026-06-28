@@ -84,6 +84,11 @@ export type OAuthAccountRecord = {
   createdAt: string;
 };
 
+export type OAuthAccountSecretRecord = OAuthAccountRecord & {
+  encryptedAccessToken?: string;
+  encryptedRefreshToken?: string;
+};
+
 export type VoiceSettingsRecord = {
   userId: string;
   ttsEnabled: boolean;

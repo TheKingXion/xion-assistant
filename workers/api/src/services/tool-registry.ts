@@ -2,6 +2,22 @@ import type { ToolDefinition } from "@xion-assistant/shared";
 
 export const tools: ToolDefinition[] = [
   {
+    name: "calendar.list_events",
+    description: "List Google Calendar events for the connected user.",
+    requiredScopes: ["https://www.googleapis.com/auth/calendar.readonly"],
+    requiresAuth: true,
+    requiresConfirmation: false,
+    riskLevel: "low"
+  },
+  {
+    name: "calendar.create_event",
+    description: "Create a Google Calendar event after explicit confirmation.",
+    requiredScopes: ["https://www.googleapis.com/auth/calendar.events"],
+    requiresAuth: true,
+    requiresConfirmation: true,
+    riskLevel: "medium"
+  },
+  {
     name: "assistant.classify_intent",
     description: "Classify user intent and risk level.",
     requiredScopes: [],
