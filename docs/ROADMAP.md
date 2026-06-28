@@ -42,6 +42,14 @@
 - Communication Router prepares recipient/channel/message without external sends.
 - Assistant engine resolves `mi esposa` through contacts and preferred channels before memory fallback.
 
+## v0.4.0
+
+- AI Gateway interface added.
+- Mock AI Gateway supports generateText, classifyIntent, extractEntities, summarize and createActionPlan.
+- Assistant classify/plan endpoints added.
+- Tool registry added with risk/auth/confirmation metadata.
+- Assistant Engine now includes AI usage metadata in generated plans.
+
 ## v0.2.0
 
 - Google OAuth.

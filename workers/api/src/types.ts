@@ -8,6 +8,7 @@ export type Env = {
   AI_PROVIDER?: string;
   AI_API_KEY?: string;
   AI_MODEL?: string;
+  AI_SMALL_MODEL?: string;
   AI_TTS_PROVIDER?: string;
   AI_TTS_DEFAULT_VOICE?: string;
   AI_TTS_DEFAULT_LANGUAGE?: string;

@@ -53,6 +53,8 @@ export type UpdateManifest = z.infer<typeof updateManifestSchema>;
 export type ToolDefinition = {
   name: string;
   description: string;
+  inputSchema?: Record<string, unknown>;
+  outputSchema?: Record<string, unknown>;
   requiredScopes: string[];
   requiresAuth: boolean;
   requiresConfirmation: boolean;
@@ -60,3 +62,27 @@ export type ToolDefinition = {
 };
 
 export const mustConfirm = (riskLevel: RiskLevel) => riskLevel === "high";
+
+export const assistantPlanSchema = z.object({
+  title: z.string().min(1),
+  goal: z.string().min(1),
+  riskLevel: riskLevelSchema,
+  steps: z.array(
+    z.object({
+      title: z.string().min(1),
+      description: z.string().optional(),
+      toolName: z.string().optional(),
+      requiresConfirmation: z.boolean()
+    })
+  )
+});
+export type AssistantPlan = z.infer<typeof assistantPlanSchema>;
+
+export const aiGatewayUsageSchema = z.object({
+  provider: z.string(),
+  model: z.string(),
+  tokensInput: z.number().int().nonnegative(),
+  tokensOutput: z.number().int().nonnegative(),
+  estimatedCostUsd: z.number().nonnegative().optional()
+});
+export type AiGatewayUsage = z.infer<typeof aiGatewayUsageSchema>;

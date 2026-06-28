@@ -21,6 +21,8 @@ pnpm build
 - Memory update/delete requires owning `user_id`.
 - Contact aliases resolve only for owning user.
 - Assistant message flow uses preferred contact channel before memory fallback.
+- AI Gateway mock classifies high-risk send-message requests.
+- Tool registry exposes confirmation metadata.
 - Update manifest endpoint.
 - Repository abstraction uses D1 when `DB` binding exists and in-memory fallback during tests.
 

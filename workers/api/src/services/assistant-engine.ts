@@ -1,6 +1,7 @@
 import type { RiskLevel } from "@xion-assistant/shared";
 import { mustConfirm } from "@xion-assistant/shared";
 import { synthesizeSpeech } from "@xion-assistant/voice";
+import type { AiGateway } from "./ai-gateway";
 import { prepareCommunication } from "./communication-router";
 import type { Repository } from "./repositories";
 
@@ -26,12 +27,14 @@ export const classifyRisk = (toolName: string): RiskLevel => {
 
 export const handleAssistantMessage = async (
   repository: Repository,
+  aiGateway: AiGateway,
   input: {
     userId: string;
     message: string;
     spokenResponse: boolean;
   }
 ) => {
+  const intent = await aiGateway.classifyIntent({ userId: input.userId, message: input.message });
   const aliasIntent = extractWifeAliasMessage(input.message);
 
   if (aliasIntent) {
@@ -51,9 +54,14 @@ export const handleAssistantMessage = async (
       };
     }
 
-    const riskLevel = classifyRisk("communication.send_message");
+    const riskLevel = intent.riskLevel;
     const recipient = prepared?.recipient ?? fallbackMemory?.value ?? aliasIntent.alias;
     const channel = prepared?.channel ?? "preferred";
+    const aiPlan = await aiGateway.createActionPlan({
+      userId: input.userId,
+      goal: `Enviar mensaje a ${recipient} por ${channel}`,
+      riskLevel
+    });
     const response = `Le enviare a ${recipient} por ${channel}: "${aliasIntent.message}". Confirmas envio?`;
     const action = await repository.createAction({
       userId: input.userId,
@@ -110,6 +118,10 @@ export const handleAssistantMessage = async (
         id: savedPlan.plan.id,
         title: "Enviar mensaje con confirmacion",
         riskLevel,
+        ai: {
+          provider: aiPlan.usage.provider,
+          model: aiPlan.usage.model
+        },
         steps: savedPlan.steps.map((step) => ({
           id: step.id,
           order: step.orderIndex,
@@ -131,14 +143,25 @@ export const handleAssistantMessage = async (
   }
 
   const response = "Xion Assistant base activo. Puedo gestionar memoria, voz, planes y updates.";
+  const aiPlan = await aiGateway.createActionPlan({
+    userId: input.userId,
+    goal: input.message,
+    riskLevel: intent.riskLevel
+  });
   return {
     ok: true,
     status: "completed",
     response,
     plan: {
-      title: "Responder consulta simple",
-      riskLevel: "low",
-      steps: [{ order: 1, title: "Generar respuesta", status: "completed" }]
+      title: aiPlan.plan.title,
+      riskLevel: aiPlan.plan.riskLevel,
+      ai: aiPlan.usage,
+      steps: aiPlan.plan.steps.map((step, index) => ({
+        order: index + 1,
+        title: step.title,
+        status: "completed",
+        requiresConfirmation: step.requiresConfirmation
+      }))
     },
     audio: input.spokenResponse
       ? synthesizeSpeech({

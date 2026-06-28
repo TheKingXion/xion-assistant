@@ -13,7 +13,7 @@ describe("xion assistant api", () => {
     const json = (await res.json()) as any;
 
     expect(json.ok).toBe(true);
-    expect(json.version).toBe("0.3.0");
+    expect(json.version).toBe("0.4.0");
   });
 
   it("creates persisted session metadata on register", async () => {
@@ -189,6 +189,52 @@ describe("xion assistant api", () => {
     expect(json.response).toContain("whatsapp");
     expect(payload.channel).toBe("whatsapp");
     expect(payload.address).toBe("+56922222222");
+    expect(json.plan.ai.provider).toBe("mock");
+  });
+
+  it("classifies high risk communication with AI gateway mock", async () => {
+    const res = await app.request(
+      "/api/assistant/classify",
+      {
+        method: "POST",
+        body: JSON.stringify({ userId: "ai-user", message: "Mandale a mi esposa que llego tarde" }),
+        headers: { "content-type": "application/json" }
+      },
+      env
+    );
+    const json = (await res.json()) as any;
+
+    expect(json.ok).toBe(true);
+    expect(json.result.intent).toBe("communication.send_message");
+    expect(json.result.riskLevel).toBe("high");
+    expect(json.result.entities.recipient).toBe("mi esposa");
+    expect(json.result.usage.provider).toBe("mock");
+  });
+
+  it("creates mock assistant plans through AI gateway", async () => {
+    const res = await app.request(
+      "/api/assistant/plan",
+      {
+        method: "POST",
+        body: JSON.stringify({ userId: "plan-user", goal: "Organiza mi dia" }),
+        headers: { "content-type": "application/json" }
+      },
+      env
+    );
+    const json = (await res.json()) as any;
+
+    expect(json.ok).toBe(true);
+    expect(json.plan.steps.length).toBeGreaterThan(1);
+    expect(json.usage.model).toBe("mock-assistant");
+  });
+
+  it("exposes tool registry with confirmation metadata", async () => {
+    const res = await app.request("/api/tools/communication.send_message", {}, env);
+    const json = (await res.json()) as any;
+
+    expect(json.ok).toBe(true);
+    expect(json.tool.riskLevel).toBe("high");
+    expect(json.tool.requiresConfirmation).toBe(true);
   });
 
   it("records confirmation but does not fake connector execution", async () => {

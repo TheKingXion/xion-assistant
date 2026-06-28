@@ -4,12 +4,23 @@ import { listVoices, synthesizeSpeech } from "@xion-assistant/voice";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { z } from "zod";
+import { createAiGateway, type AiGatewayConfig } from "./services/ai-gateway";
 import { handleAssistantMessage } from "./services/assistant-engine";
 import { createRepository } from "./services/repositories";
 import { createSessionToken, hashPassword, verifyPassword } from "./services/security";
+import { getTool, listTools } from "./services/tool-registry";
 import type { Env } from "./types";
 
 export const app = new Hono<{ Bindings: Env }>();
+
+const aiConfigFromEnv = (env: Env): AiGatewayConfig => {
+  const config: AiGatewayConfig = {};
+  if (env.AI_PROVIDER !== undefined) config.provider = env.AI_PROVIDER;
+  if (env.AI_API_KEY !== undefined) config.apiKey = env.AI_API_KEY;
+  if (env.AI_MODEL !== undefined) config.model = env.AI_MODEL;
+  if (env.AI_SMALL_MODEL !== undefined) config.smallModel = env.AI_SMALL_MODEL;
+  return config;
+};
 
 app.use(
   "*",
@@ -25,7 +36,7 @@ app.get("/api/health", (c) =>
   c.json({
     ok: true,
     name: "xion-assistant-api",
-    version: "0.3.0",
+    version: "0.4.0",
     routes: {
       web: c.env.PUBLIC_WEB_URL,
       api: c.env.PUBLIC_API_URL
@@ -247,7 +258,31 @@ app.get("/api/contacts/resolve", async (c) => {
 app.post("/api/assistant/message", zValidator("json", assistantRequestSchema), async (c) => {
   const body = c.req.valid("json");
   const repository = createRepository(c.env.DB);
-  return c.json(await handleAssistantMessage(repository, body));
+  const aiGateway = createAiGateway(aiConfigFromEnv(c.env));
+  return c.json(await handleAssistantMessage(repository, aiGateway, body));
+});
+
+app.post("/api/assistant/plan", zValidator("json", z.object({ userId: z.string().min(1), goal: z.string().min(1) })), async (c) => {
+  const body = c.req.valid("json");
+  const aiGateway = createAiGateway(aiConfigFromEnv(c.env));
+  const plan = await aiGateway.createActionPlan({ userId: body.userId, goal: body.goal });
+  return c.json({ ok: true, ...plan });
+});
+
+app.post("/api/assistant/classify", zValidator("json", z.object({ userId: z.string().min(1), message: z.string().min(1) })), async (c) => {
+  const body = c.req.valid("json");
+  const config = aiConfigFromEnv(c.env);
+  if (c.env.AI_SMALL_MODEL !== undefined) config.model = c.env.AI_SMALL_MODEL;
+  const aiGateway = createAiGateway(config);
+  return c.json({ ok: true, result: await aiGateway.classifyIntent({ userId: body.userId, message: body.message }) });
+});
+
+app.get("/api/tools", (c) => c.json({ ok: true, tools: listTools() }));
+
+app.get("/api/tools/:name", (c) => {
+  const tool = getTool(c.req.param("name"));
+  if (!tool) return c.json({ ok: false, error: "tool_not_found" }, 404);
+  return c.json({ ok: true, tool });
 });
 
 app.get("/api/actions/:id", async (c) => {
@@ -362,7 +397,7 @@ app.post(
 );
 
 app.post("/api/voice/transcribe", () =>
-  new Response(JSON.stringify({ ok: false, error: "stt_provider_not_configured_in_v0.2.0" }), {
+  new Response(JSON.stringify({ ok: false, error: "stt_provider_not_configured_in_v0.4.0" }), {
     status: 501,
     headers: { "content-type": "application/json" }
   })

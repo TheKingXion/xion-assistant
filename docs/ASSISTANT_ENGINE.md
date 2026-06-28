@@ -1,12 +1,12 @@
 # Assistant Engine
 
-`v0.2.0` includes a small deterministic engine for testing foundation behavior.
+`v0.4.0` includes a deterministic AI Gateway-backed engine for testing foundation behavior.
 
 ## Flow
 
 1. Receive user message.
-2. Classify simple intent.
-3. Resolve memory by `user_id`.
+2. Classify intent through AI Gateway.
+3. Resolve contact or memory by `user_id`.
 4. Create plan.
 5. Assign risk.
 6. Require confirmation for high risk action.
@@ -19,7 +19,7 @@ Plans have title, risk level and ordered steps. Sensitive steps are `pending_con
 
 ## Tools
 
-Initial tool contract includes name, description, scopes, auth, confirmation flag, risk level and execute function. Full registry pending.
+Initial tool registry includes name, description, scopes, auth, confirmation flag and risk level. Execution functions remain connector-specific and pending.
 
 ## Spoken Response
 

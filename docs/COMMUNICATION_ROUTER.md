@@ -2,6 +2,8 @@
 
 `v0.3.0` includes an initial Communication Router. It resolves contacts by display name or confirmed alias for the current `user_id`, selects the preferred channel, prepares the message, and leaves execution pending confirmation.
 
+`v0.4.0` exposes tool metadata for `communication.resolve_contact` and `communication.send_message`.
+
 ## Responsibilities
 
 - Resolve intent.
