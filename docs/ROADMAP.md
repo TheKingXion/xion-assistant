@@ -13,6 +13,10 @@
 - Tests and workflows.
 - Required docs.
 
+## v0.0.2
+
+- Local Wrangler dev host fixed for placeholder production routes.
+
 ## v0.1.0
 
 - D1-backed repositories.

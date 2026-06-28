@@ -229,6 +229,8 @@ Health:
 curl http://localhost:8787/api/health
 ```
 
+`wrangler.toml` includes `[dev] host = "localhost"` so local dev works even while production routes still use `<TU_DOMINIO>` placeholders.
+
 ## 20. Web local
 
 ```bash
