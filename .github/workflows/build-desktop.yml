@@ -1,0 +1,29 @@
+name: Build Desktop
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-desktop:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Placeholder desktop artifact gate
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist/releases/desktop/windows
+          "Desktop Tauri package not implemented in v0.0.1" | Out-File dist/releases/desktop/windows/README.txt
+      - run: pnpm release:checksums dist/releases dist/releases/checksums.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-release-placeholder
+          path: dist/releases

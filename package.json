@@ -1,0 +1,25 @@
+{
+  "name": "xion-assistant",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@9.15.4",
+  "scripts": {
+    "dev": "pnpm --parallel dev",
+    "dev:api": "pnpm --filter @xion-assistant/api dev",
+    "dev:web": "pnpm --filter @xion-assistant/web dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint",
+    "release:checksums": "tsx scripts/generate-checksums.ts",
+    "release:verify": "tsx scripts/verify-release.ts",
+    "release:publish-version": "tsx scripts/publish-version.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

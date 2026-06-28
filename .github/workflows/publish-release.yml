@@ -1,0 +1,27 @@
+name: Publish Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      manifest_path:
+        description: Path to latest.json manifest
+        default: dist/releases/latest.json
+        required: true
+
+jobs:
+  publish-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm release:verify "${{ inputs.manifest_path }}"
+      - run: pnpm release:publish-version "${{ inputs.manifest_path }}" dist/releases/published-version.json
+      - name: Upload release metadata to R2
+        run: echo "R2 upload requires configured bucket credentials; see docs/UPDATES.md"
