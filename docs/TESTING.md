@@ -17,6 +17,7 @@ pnpm build
 - Voice settings isolation user A/B.
 - High risk communication remains pending confirmation.
 - Update manifest endpoint.
+- Repository abstraction uses D1 when `DB` binding exists and in-memory fallback during tests.
 
 ## Manual Checks
 

@@ -5,7 +5,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { z } from "zod";
 import { handleAssistantMessage } from "./services/assistant-engine";
-import { repository } from "./services/repositories";
+import { createRepository } from "./services/repositories";
 import { createSessionToken, hashPassword, verifyPassword } from "./services/security";
 import type { Env } from "./types";
 
@@ -25,7 +25,7 @@ app.get("/api/health", (c) =>
   c.json({
     ok: true,
     name: "xion-assistant-api",
-    version: "0.0.2",
+    version: "0.1.0",
     routes: {
       web: c.env.PUBLIC_WEB_URL,
       api: c.env.PUBLIC_API_URL
@@ -42,7 +42,8 @@ const authSchema = z.object({
 app.post("/api/auth/register", zValidator("json", authSchema), async (c) => {
   const body = c.req.valid("json");
   const passwordHash = await hashPassword(body.password);
-  const user = repository.createUser({
+  const repository = createRepository(c.env.DB);
+  const user = await repository.createUser({
     email: body.email,
     displayName: body.displayName ?? body.email.split("@")[0] ?? "User",
     passwordHash
@@ -53,7 +54,8 @@ app.post("/api/auth/register", zValidator("json", authSchema), async (c) => {
 
 app.post("/api/auth/login", zValidator("json", authSchema.omit({ displayName: true })), async (c) => {
   const body = c.req.valid("json");
-  const user = repository.findUserByEmail(body.email);
+  const repository = createRepository(c.env.DB);
+  const user = await repository.findUserByEmail(body.email);
   if (!user?.passwordHash || !(await verifyPassword(body.password, user.passwordHash))) {
     return c.json({ ok: false, error: "invalid_credentials" }, 401);
   }
@@ -61,10 +63,11 @@ app.post("/api/auth/login", zValidator("json", authSchema.omit({ displayName: tr
   return c.json({ ok: true, user: { id: user.id, email: user.email, displayName: user.displayName }, token });
 });
 
-app.get("/api/memory", (c) => {
+app.get("/api/memory", async (c) => {
   const userId = c.req.query("user_id");
   if (!userId) return c.json({ ok: false, error: "user_id_required" }, 400);
-  return c.json({ ok: true, memories: repository.listMemoriesForUser(userId) });
+  const repository = createRepository(c.env.DB);
+  return c.json({ ok: true, memories: await repository.listMemoriesForUser(userId) });
 });
 
 app.post(
@@ -80,29 +83,33 @@ app.post(
       confidence: z.number().min(0).max(1).default(1)
     })
   ),
-  (c) => {
+  async (c) => {
     const body = c.req.valid("json");
-    const memory = repository.createMemory(body);
+    const repository = createRepository(c.env.DB);
+    const memory = await repository.createMemory(body);
     return c.json({ ok: true, memory }, 201);
   }
 );
 
-app.post("/api/assistant/message", zValidator("json", assistantRequestSchema), (c) => {
+app.post("/api/assistant/message", zValidator("json", assistantRequestSchema), async (c) => {
   const body = c.req.valid("json");
-  return c.json(handleAssistantMessage(body));
+  const repository = createRepository(c.env.DB);
+  return c.json(await handleAssistantMessage(repository, body));
 });
 
 app.get("/api/voice/voices", (c) => c.json({ ok: true, voices: listVoices() }));
 
-app.get("/api/voice/settings", (c) => {
+app.get("/api/voice/settings", async (c) => {
   const userId = c.req.query("user_id");
   if (!userId) return c.json({ ok: false, error: "user_id_required" }, 400);
-  return c.json({ ok: true, settings: repository.getVoiceSettings(userId) ?? null });
+  const repository = createRepository(c.env.DB);
+  return c.json({ ok: true, settings: (await repository.getVoiceSettings(userId)) ?? null });
 });
 
-app.put("/api/voice/settings", zValidator("json", voiceSettingsSchema), (c) => {
+app.put("/api/voice/settings", zValidator("json", voiceSettingsSchema), async (c) => {
   const settings = c.req.valid("json");
-  return c.json({ ok: true, settings: repository.setVoiceSettings(settings.userId, settings) });
+  const repository = createRepository(c.env.DB);
+  return c.json({ ok: true, settings: await repository.setVoiceSettings(settings.userId, settings) });
 });
 
 app.post(

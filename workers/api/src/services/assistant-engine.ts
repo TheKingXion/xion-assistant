@@ -1,7 +1,7 @@
 import type { RiskLevel } from "@xion-assistant/shared";
 import { mustConfirm } from "@xion-assistant/shared";
 import { synthesizeSpeech } from "@xion-assistant/voice";
-import { repository } from "./repositories";
+import type { Repository } from "./repositories";
 
 const extractWifeAliasMessage = (message: string) => {
   const normalized = message.toLowerCase();
@@ -23,7 +23,9 @@ export const classifyRisk = (toolName: string): RiskLevel => {
   return "low";
 };
 
-export const handleAssistantMessage = (input: {
+export const handleAssistantMessage = async (
+  repository: Repository,
+  input: {
   userId: string;
   message: string;
   spokenResponse: boolean;
@@ -32,7 +34,7 @@ export const handleAssistantMessage = (input: {
   const planSteps = [];
 
   if (aliasIntent) {
-    const memory = repository.resolveMemory(input.userId, aliasIntent.alias);
+    const memory = await repository.resolveMemory(input.userId, aliasIntent.alias);
     if (!memory) {
       return {
         ok: true,

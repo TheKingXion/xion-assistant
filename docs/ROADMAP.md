@@ -19,11 +19,11 @@
 
 ## v0.1.0
 
-- D1-backed repositories.
-- Real auth sessions in D1.
-- CRUD memory/contact.
-- Action confirmations persisted.
-- Assistant plans persisted.
+- D1-backed repositories for users, memory and voice settings.
+- Async repository interface with in-memory fallback for tests/local calls without DB.
+- Real auth/session persistence in D1 remains next.
+- Full CRUD memory/contact remains next.
+- Action confirmations and assistant plans persistence remain next.
 
 ## v0.2.0
 

@@ -13,7 +13,7 @@ describe("xion assistant api", () => {
     const json = (await res.json()) as any;
 
     expect(json.ok).toBe(true);
-    expect(json.version).toBe("0.0.2");
+    expect(json.version).toBe("0.1.0");
   });
 
   it("keeps memories isolated by user_id", async () => {

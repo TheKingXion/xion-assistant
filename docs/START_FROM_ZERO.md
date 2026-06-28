@@ -1,6 +1,6 @@
 # START FROM ZERO
 
-Estado: `v0.0.1` foundation. API, web, migracion D1, tests, scripts y workflows existen. Deploy real requiere Cloudflare/GitHub secrets.
+Estado: `v0.1.0` foundation. API, web, migracion D1, D1-backed users/memory/voice settings, tests, scripts y workflows existen. Deploy real requiere Cloudflare/GitHub secrets.
 
 ## 1. Requisitos previos
 
@@ -364,6 +364,7 @@ Ver `docs/TROUBLESHOOTING.md`.
 - [x] Web console base.
 - [x] Memoria por usuario base.
 - [x] Voz/TTS mock por usuario.
+- [x] Persistencia D1 para usuarios, memoria y configuracion de voz cuando existe binding `DB`.
 - [x] Confirmacion requerida para accion de alto riesgo.
 - [x] Endpoint updates.
 - [x] Workflows.

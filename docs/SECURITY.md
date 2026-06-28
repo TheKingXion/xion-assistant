@@ -2,7 +2,7 @@
 
 ## Auth
 
-`v0.0.1` has basic email/password endpoints for local foundation. Passwords are hashed. Production should replace SHA-256 placeholder with stronger password hashing supported by target runtime.
+`v0.1.0` has basic email/password endpoints backed by repository persistence. Passwords are hashed. Production should replace SHA-256 placeholder with stronger password hashing supported by target runtime.
 
 ## Sessions
 

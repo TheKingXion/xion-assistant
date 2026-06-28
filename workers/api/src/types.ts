@@ -32,3 +32,16 @@ export type MemoryRecord = {
   confidence: number;
   createdAt: string;
 };
+
+export type VoiceSettingsRecord = {
+  userId: string;
+  ttsEnabled: boolean;
+  sttEnabled: boolean;
+  wakeWordEnabled: boolean;
+  selectedVoiceId: string;
+  language: string;
+  speed: number;
+  pitch: number;
+  volume: number;
+  autoPlayResponses: boolean;
+};
