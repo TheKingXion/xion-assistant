@@ -1,17 +1,19 @@
 # Assistant Engine
 
-`v0.4.0` includes a deterministic AI Gateway-backed engine for testing foundation behavior.
+`v0.10.0` adds Command Router before AI Gateway.
 
 ## Flow
 
 1. Receive user message.
-2. Classify intent through AI Gateway.
-3. Resolve contact or memory by `user_id`.
-4. Create plan.
-5. Assign risk.
-6. Require confirmation for high risk action.
-7. Return text.
-8. Optionally return TTS mock.
+2. Validate session and derive `user_id`.
+3. Try private shortcuts, then system Command Registry.
+4. Resolve parameters and confidence.
+5. Execute safe command, request missing data, or create confirmation.
+6. Use AI Gateway only when deterministic confidence is low.
+7. Resolve contact or memory by `user_id`.
+8. Create plan, return text and optionally TTS.
+
+Every optimized command persists action and plan. AI fallback records zero saved tokens. Learning proposals become active only after user confirmation.
 
 ## Plans
 

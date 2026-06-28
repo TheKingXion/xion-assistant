@@ -16,6 +16,20 @@ const configuredOAuthEnv = {
   SPOTIFY_CLIENT_SECRET: "spotify-secret"
 };
 
+const createAuthenticatedUser = async (label: string) => {
+  const res = await app.request(
+    "/api/auth/register",
+    {
+      method: "POST",
+      body: JSON.stringify({ email: `${label}-${crypto.randomUUID()}@example.com`, password: "change-me-1234", displayName: label }),
+      headers: { "content-type": "application/json" }
+    },
+    env
+  );
+  const json = (await res.json()) as any;
+  return { userId: json.user.id as string, authorization: `Bearer ${json.token}` };
+};
+
 afterEach(() => {
   vi.restoreAllMocks();
 });
@@ -32,7 +46,14 @@ describe("xion assistant api", () => {
     const json = (await res.json()) as any;
 
     expect(json.ok).toBe(true);
-    expect(json.version).toBe("0.9.0");
+    expect(json.version).toBe("0.10.0");
+  });
+
+  it("allows bearer API preflight without credentialed CORS", async () => {
+    const res = await app.request("/api/auth/register", { method: "OPTIONS", headers: { origin: "http://localhost:5174", "access-control-request-method": "POST", "access-control-request-headers": "content-type" } }, env);
+    expect(res.status).toBe(204);
+    expect(res.headers.get("access-control-allow-origin")).toBe("*");
+    expect(res.headers.get("access-control-allow-credentials")).toBeNull();
   });
 
   it("creates persisted session metadata on register", async () => {
@@ -54,6 +75,15 @@ describe("xion assistant api", () => {
     expect(json.ok).toBe(true);
     expect(json.token).toBeTruthy();
     expect(json.session.id).toMatch(/^ses_/);
+  });
+
+  it("rejects duplicate registration and malformed bearer tokens", async () => {
+    const email = `duplicate-${crypto.randomUUID()}@example.com`;
+    const request = { method: "POST", body: JSON.stringify({ email, password: "change-me-1234" }), headers: { "content-type": "application/json" } };
+    expect((await app.request("/api/auth/register", request, env)).status).toBe(200);
+    expect((await app.request("/api/auth/register", request, env)).status).toBe(409);
+    const malformed = await app.request("/api/commands", { headers: { authorization: "Bearer %%%.???" } }, env);
+    expect(malformed.status).toBe(401);
   });
 
   it("keeps memories isolated by user_id", async () => {
@@ -82,16 +112,25 @@ describe("xion assistant api", () => {
   });
 
   it("does not execute high risk communication without confirmation", async () => {
+    const auth = await createAuthenticatedUser("confirmation-user");
+    await app.request(
+      "/api/memory",
+      {
+        method: "POST",
+        body: JSON.stringify({ userId: auth.userId, memoryType: "contact_alias", key: "mi esposa", value: "Camila", confirmed: true, confidence: 1 }),
+        headers: { "content-type": "application/json" }
+      },
+      env
+    );
     const res = await app.request(
       "/api/assistant/message",
       {
         method: "POST",
         body: JSON.stringify({
-          userId: "user-a",
           message: "Mandale a mi esposa que voy en camino",
           spokenResponse: true
         }),
-        headers: { "content-type": "application/json" }
+        headers: { "content-type": "application/json", authorization: auth.authorization }
       },
       env
     );
@@ -152,11 +191,12 @@ describe("xion assistant api", () => {
   });
 
   it("assistant uses contact alias and preferred channel before memory fallback", async () => {
+    const auth = await createAuthenticatedUser("router-user");
     const created = await app.request(
       "/api/contacts",
       {
         method: "POST",
-        body: JSON.stringify({ userId: "router-user", displayName: "Camila Router" }),
+        body: JSON.stringify({ userId: auth.userId, displayName: "Camila Router" }),
         headers: { "content-type": "application/json" }
       },
       env
@@ -166,7 +206,7 @@ describe("xion assistant api", () => {
       `/api/contacts/${contact.id}/aliases`,
       {
         method: "POST",
-        body: JSON.stringify({ userId: "router-user", alias: "mi esposa", confirmed: true }),
+        body: JSON.stringify({ userId: auth.userId, alias: "mi esposa", confirmed: true }),
         headers: { "content-type": "application/json" }
       },
       env
@@ -176,7 +216,7 @@ describe("xion assistant api", () => {
       {
         method: "POST",
         body: JSON.stringify({
-          userId: "router-user",
+          userId: auth.userId,
           channel: "whatsapp",
           address: "+56922222222",
           isPreferred: true
@@ -191,16 +231,15 @@ describe("xion assistant api", () => {
       {
         method: "POST",
         body: JSON.stringify({
-          userId: "router-user",
           message: "Mandale a mi esposa que voy llegando",
           spokenResponse: false
         }),
-        headers: { "content-type": "application/json" }
+        headers: { "content-type": "application/json", authorization: auth.authorization }
       },
       env
     );
     const json = (await message.json()) as any;
-    const action = await app.request(`/api/actions/${json.action.id}?user_id=router-user`, {}, env);
+    const action = await app.request(`/api/actions/${json.action.id}?user_id=${auth.userId}`, {}, env);
     const actionJson = (await action.json()) as any;
     const payload = JSON.parse(actionJson.action.inputJson);
 
@@ -208,7 +247,7 @@ describe("xion assistant api", () => {
     expect(json.response).toContain("whatsapp");
     expect(payload.channel).toBe("whatsapp");
     expect(payload.address).toBe("+56922222222");
-    expect(json.plan.ai.provider).toBe("mock");
+    expect(json.usedAiFallback).toBe(false);
   });
 
   it("classifies high risk communication with AI gateway mock", async () => {
@@ -657,16 +696,17 @@ describe("xion assistant api", () => {
   });
 
   it("records confirmation but does not fake connector execution", async () => {
+    const auth = await createAuthenticatedUser("unconfigured-send");
+    await app.request("/api/memory", { method: "POST", body: JSON.stringify({ userId: auth.userId, memoryType: "contact_alias", key: "mi esposa", value: "Camila", confirmed: true, confidence: 1 }), headers: { "content-type": "application/json" } }, env);
     const message = await app.request(
       "/api/assistant/message",
       {
         method: "POST",
         body: JSON.stringify({
-          userId: "user-a",
           message: "Mandale a mi esposa que llego tarde",
           spokenResponse: false
         }),
-        headers: { "content-type": "application/json" }
+        headers: { "content-type": "application/json", authorization: auth.authorization }
       },
       env
     );
@@ -676,7 +716,7 @@ describe("xion assistant api", () => {
       `/api/actions/${messageJson.action.id}/confirm`,
       {
         method: "POST",
-        body: JSON.stringify({ userId: "user-a" }),
+        body: JSON.stringify({ userId: auth.userId }),
         headers: { "content-type": "application/json" }
       },
       env
@@ -690,23 +730,24 @@ describe("xion assistant api", () => {
   });
 
   it("stores assistant plans under the requesting user", async () => {
+    const auth = await createAuthenticatedUser("plan-owner");
+    await app.request("/api/memory", { method: "POST", body: JSON.stringify({ userId: auth.userId, memoryType: "contact_alias", key: "mi esposa", value: "Camila", confirmed: true, confidence: 1 }), headers: { "content-type": "application/json" } }, env);
     const message = await app.request(
       "/api/assistant/message",
       {
         method: "POST",
         body: JSON.stringify({
-          userId: "user-a",
           message: "Mandale a mi esposa que voy saliendo",
           spokenResponse: false
         }),
-        headers: { "content-type": "application/json" }
+        headers: { "content-type": "application/json", authorization: auth.authorization }
       },
       env
     );
     const messageJson = (await message.json()) as any;
 
-    const ownPlan = await app.request(`/api/plans/${messageJson.plan.id}?user_id=user-a`, {}, env);
-    const otherPlan = await app.request(`/api/plans/${messageJson.plan.id}?user_id=user-b`, {}, env);
+    const ownPlan = await app.request(`/api/plans/${messageJson.plan.id}?user_id=${auth.userId}`, {}, env);
+    const otherPlan = await app.request(`/api/plans/${messageJson.plan.id}?user_id=other-user`, {}, env);
 
     expect(((await ownPlan.json()) as any).plan.id).toBe(messageJson.plan.id);
     expect(otherPlan.status).toBe(404);
@@ -791,5 +832,38 @@ describe("xion assistant api", () => {
 
     expect(json.ok).toBe(true);
     expect(json.manifest.platform).toBe("android");
+  });
+
+  it("requires auth for command endpoints", async () => {
+    const res = await app.request("/api/commands/shortcuts", {}, env);
+    expect(res.status).toBe(401);
+    expect(((await res.json()) as any).error).toBe("authentication_required");
+  });
+
+  it("prevents one user from editing another user's shortcut", async () => {
+    const owner = await createAuthenticatedUser("shortcut-owner");
+    const other = await createAuthenticatedUser("shortcut-other");
+    const created = await app.request(
+      "/api/commands/shortcuts",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: owner.authorization },
+        body: JSON.stringify({ shortcut: "tempranito", intent: "alarm.create", params: { time: "06:45" } })
+      },
+      env
+    );
+    const shortcut = ((await created.json()) as any).shortcut;
+    const denied = await app.request(
+      `/api/commands/shortcuts/${shortcut.id}`,
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json", authorization: other.authorization },
+        body: JSON.stringify({ params: { time: "08:00" } })
+      },
+      env
+    );
+    expect(denied.status).toBe(404);
+    const ownerList = await app.request("/api/commands/shortcuts", { headers: { authorization: owner.authorization } }, env);
+    expect(((await ownerList.json()) as any).shortcuts[0].params.time).toBe("06:45");
   });
 });

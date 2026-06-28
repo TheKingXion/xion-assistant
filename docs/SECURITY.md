@@ -6,7 +6,9 @@
 
 ## Sessions
 
-Session token foundation exists. Production needs refresh tokens, revocation and device tracking wired to D1.
+Assistant and Command Registry endpoints verify HMAC token signature, expiry and persisted active-session hash. Server derives `user_id`; protected request bodies cannot select another owner. Refresh-token rotation and explicit device revocation remain future hardening.
+
+Browser API uses Bearer headers, not cookies. CORS allows origins without credential mode; possession of a valid persisted session token remains required for protected routes.
 
 ## OAuth
 
@@ -17,6 +19,12 @@ Google/Spotify OAuth start URLs, callback token exchange and encrypted token sto
 OAuth tokens are encrypted with AES-GCM using `TOKEN_ENCRYPTION_KEY`. API list responses are redacted and must never return access/refresh tokens.
 
 ## Confirmations
+
+High-risk communication, calendar writes, ambiguous alarm cancellation and repeating alarms require confirmation. Optimized commands still persist actions and plans.
+
+## Command Isolation
+
+Shortcuts, learning events and usage metrics filter by authenticated `user_id`. Cross-user update/delete returns `404`. System patterns live in reviewed TypeScript; D1 never supplies executable regex. Logs contain command metadata, not secrets or OAuth tokens.
 
 High risk actions require explicit confirmation. Tests verify message send starts `pending_confirmation`. Confirming without a configured connector records the confirmation and marks the action failed with `connector_not_configured`, not completed.
 

@@ -28,12 +28,29 @@ export const voiceSettingsSchema = z.object({
 export type VoiceSettings = z.infer<typeof voiceSettingsSchema>;
 
 export const assistantRequestSchema = z.object({
-  userId: z.string().min(1),
+  userId: z.string().min(1).optional(),
   message: z.string().min(1).max(8000),
   conversationId: z.string().optional(),
-  spokenResponse: z.boolean().default(false)
+  spokenResponse: z.boolean().default(false),
+  platform: z.enum(["web", "windows", "android", "ios", "unknown"]).default("unknown"),
+  timezone: z.string().trim().min(1).max(100).optional()
 });
 export type AssistantRequest = z.infer<typeof assistantRequestSchema>;
+
+export const commandShortcutSchema = z.object({
+  shortcut: z.string().trim().min(1).max(120),
+  intent: z.string().trim().min(1).max(120),
+  params: z.record(z.unknown()).default({}),
+  confidence: z.number().min(0).max(1).default(1),
+  confirmed: z.boolean().default(true),
+  isActive: z.boolean().default(true)
+});
+
+export const commandMatchSchema = z.object({
+  text: z.string().trim().min(1).max(8000),
+  platform: z.enum(["web", "windows", "android", "ios", "unknown"]).default("unknown"),
+  timezone: z.string().trim().min(1).max(100).default("America/Santiago")
+});
 
 export const updateManifestSchema = z.object({
   version: z.string().min(1),

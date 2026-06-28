@@ -4,6 +4,7 @@ import { synthesizeSpeech } from "@xion-assistant/voice";
 import type { AiGateway } from "./ai-gateway";
 import { prepareCommunication } from "./communication-router";
 import type { Repository } from "./repositories";
+import { routeCommand } from "../modules/commands/command-router";
 
 const extractWifeAliasMessage = (message: string) => {
   const normalized = message.toLowerCase();
@@ -32,8 +33,24 @@ export const handleAssistantMessage = async (
     userId: string;
     message: string;
     spokenResponse: boolean;
+    platform?: "web" | "windows" | "android" | "ios" | "unknown";
+    timezone?: string;
   }
 ) => {
+  const routed = await routeCommand(repository, {
+    userId: input.userId,
+    text: input.message,
+    ...(input.timezone ? { timezone: input.timezone } : {})
+  });
+  if (routed.kind === "resolved") {
+    return {
+      ...routed.result,
+      audio: input.spokenResponse
+        ? synthesizeSpeech({ text: routed.result.response, userId: input.userId, voiceId: "xion_voice_1", language: "es-CL", speed: 1 })
+        : null
+    };
+  }
+
   const intent = await aiGateway.classifyIntent({ userId: input.userId, message: input.message });
   const aliasIntent = extractWifeAliasMessage(input.message);
 

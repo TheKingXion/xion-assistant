@@ -111,6 +111,52 @@ export type SessionRecord = {
   createdAt: string;
 };
 
+export type CommandShortcutRecord = {
+  id: string;
+  userId: string;
+  shortcut: string;
+  intent: string;
+  paramsJson: string;
+  confidence: number;
+  confirmed: boolean;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CommandUsageRecord = {
+  id: string;
+  userId: string;
+  commandName?: string;
+  inputText: string;
+  matchedPattern?: string;
+  confidence: number;
+  usedAiFallback: boolean;
+  estimatedTokensSaved: number;
+  status: string;
+  createdAt: string;
+};
+
+export type CommandLearningRecord = {
+  id: string;
+  userId: string;
+  sourceText: string;
+  suggestedShortcut: string;
+  intent: string;
+  paramsJson: string;
+  confirmed: boolean;
+  createdAt: string;
+};
+
+export type ReminderRecord = {
+  id: string;
+  userId: string;
+  title: string;
+  dueAt?: string;
+  status: string;
+  createdAt: string;
+};
+
 export type AssistantActionRecord = {
   id: string;
   userId: string;

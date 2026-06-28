@@ -18,6 +18,12 @@ pnpm build
 - High risk communication remains pending confirmation.
 - Confirming a message action records confirmation but does not fake external connector execution.
 - Plans are readable by owner only.
+- Command alarm/reminder/YouTube matching.
+- Communication command remains pending confirmation.
+- Shortcut `tempranito` differs for users A/B.
+- High-confidence command skips AI; unknown text uses fallback.
+- Token savings metrics.
+- Command endpoints require auth and reject cross-user edits.
 - Memory update/delete requires owning `user_id`.
 - Contact aliases resolve only for owning user.
 - Assistant message flow uses preferred contact channel before memory fallback.

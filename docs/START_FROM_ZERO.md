@@ -1,6 +1,29 @@
 # START FROM ZERO
 
-Estado: `v0.9.0` foundation. API, web, migracion D1, D1-backed users/sessions/memory/contacts/voice/actions/plans/oauth, OAuth token exchange, Google Calendar connector, Spotify playback connector, YouTube read connector, AI Gateway mock/configurable, tool registry, tests, scripts y workflows existen. Deploy real requiere Cloudflare/GitHub secrets.
+Estado: `v0.10.0` foundation. Incluye Command Registry autenticado, shortcuts privados, metricas, UI y migracion `0002`. Deploy real requiere recursos y secrets Cloudflare.
+
+## Cloudflare: Worker, Pages, D1 y R2
+
+```powershell
+pnpm exec wrangler login
+pnpm --filter @xion-assistant/api exec wrangler d1 create xion-assistant
+pnpm exec wrangler r2 bucket create xion-assistant-releases
+pnpm --filter @xion-assistant/api exec wrangler d1 migrations apply xion-assistant --remote
+pnpm --filter @xion-assistant/api deploy
+pnpm --filter @xion-assistant/web build
+pnpm exec wrangler pages project create xion-assistant
+pnpm exec wrangler pages deploy apps/web/dist --project-name xion-assistant
+```
+
+Copiar ID D1 a `workers/api/wrangler.toml`. Configurar bindings `DB` y `RELEASES`, secrets `JWT_SECRET`/`TOKEN_ENCRYPTION_KEY`, variable Pages `VITE_PUBLIC_API_URL`, dominio Pages `assistant.xion.<TU_DOMINIO>` y ruta Worker `api.asst.xion.<TU_DOMINIO>/*`.
+
+## Probar Command Registry
+
+1. Crear usuario A desde web y shortcut `tempranito -> alarm.create {"time":"06:45"}`.
+2. Ejecutar `despiertame tempranito`; verificar que respuesta indique `usedAiFallback=false` y suban tokens ahorrados.
+3. Crear usuario B y mismo shortcut con `08:00`.
+4. Confirmar que cada cuenta obtiene su propia hora.
+5. Ejecutar `dile a Pedro que voy tarde`; debe pedir contacto o quedar `pending_confirmation`, nunca enviar directamente.
 
 ## 1. Requisitos previos
 

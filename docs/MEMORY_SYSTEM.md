@@ -26,6 +26,14 @@ Create/list exist. Edit/delete/export/clear are pending.
 
 Reads must always filter by `user_id`.
 
+## Memory, aliases and shortcuts
+
+- Memory stores durable facts/preferences.
+- Contact aliases map private names to private contacts.
+- Command shortcuts map private phrases to intents and structured parameters.
+
+Shortcuts live in `user_command_shortcuts`, not global memory. Matching starts only after authenticated `user_id` is known.
+
 ## Alias Examples
 
 - `mi esposa` -> `Camila`

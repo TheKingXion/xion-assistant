@@ -6,11 +6,15 @@ import type {
   ContactAliasRecord,
   ContactChannelRecord,
   ContactRecord,
+  CommandLearningRecord,
+  CommandShortcutRecord,
+  CommandUsageRecord,
   MemoryRecord,
   OAuthAccountRecord,
   OAuthAccountSecretRecord,
   OAuthProvider,
   ResolvedContactRecord,
+  ReminderRecord,
   SessionRecord,
   UserRecord,
   VoiceSettingsRecord
@@ -21,6 +25,7 @@ export type Repository = {
   createUser(input: { email: string; displayName: string; passwordHash?: string }): Promise<UserRecord>;
   findUserByEmail(email: string): Promise<UserRecord | undefined>;
   createSession(input: { userId: string; tokenHash: string; deviceId?: string; expiresAt: string }): Promise<SessionRecord>;
+  findActiveSessionByTokenHash(tokenHash: string): Promise<SessionRecord | undefined>;
   createContact(input: { userId: string; displayName: string; notes?: string }): Promise<ContactRecord>;
   listContactsForUser(userId: string): Promise<ContactRecord[]>;
   createContactAlias(input: { userId: string; contactId: string; alias: string; confirmed: boolean }): Promise<ContactAliasRecord>;
@@ -51,6 +56,18 @@ export type Repository = {
   createActionConfirmation(input: Omit<ActionConfirmationRecord, "id" | "createdAt">): Promise<ActionConfirmationRecord>;
   createPlanWithSteps(input: Omit<AssistantPlanRecord, "id" | "createdAt" | "updatedAt">, steps: Array<Omit<AssistantPlanStepRecord, "id" | "planId">>): Promise<{ plan: AssistantPlanRecord; steps: AssistantPlanStepRecord[] }>;
   getPlanForUser(userId: string, planId: string): Promise<{ plan: AssistantPlanRecord; steps: AssistantPlanStepRecord[] } | undefined>;
+  listCommandShortcuts(userId: string): Promise<CommandShortcutRecord[]>;
+  getCommandShortcut(userId: string, shortcut: string): Promise<CommandShortcutRecord | undefined>;
+  createCommandShortcut(input: Omit<CommandShortcutRecord, "id" | "createdAt" | "updatedAt">): Promise<CommandShortcutRecord>;
+  updateCommandShortcut(userId: string, id: string, input: Partial<Pick<CommandShortcutRecord, "shortcut" | "intent" | "paramsJson" | "confidence" | "confirmed" | "isActive">>): Promise<CommandShortcutRecord | undefined>;
+  deleteCommandShortcut(userId: string, id: string): Promise<boolean>;
+  createCommandUsage(input: Omit<CommandUsageRecord, "id" | "createdAt">): Promise<CommandUsageRecord>;
+  listCommandUsage(userId: string): Promise<CommandUsageRecord[]>;
+  createCommandLearning(input: Omit<CommandLearningRecord, "id" | "createdAt">): Promise<CommandLearningRecord>;
+  getUserSetting(userId: string, key: string): Promise<string | undefined>;
+  setUserSetting(userId: string, key: string, value: string): Promise<void>;
+  createReminder(input: { userId: string; title: string; dueAt?: string }): Promise<ReminderRecord>;
+  listReminders(userId: string): Promise<ReminderRecord[]>;
 };
 
 export class InMemoryRepository implements Repository {
@@ -66,6 +83,11 @@ export class InMemoryRepository implements Repository {
   private confirmations = new Map<string, ActionConfirmationRecord>();
   private plans = new Map<string, AssistantPlanRecord>();
   private planSteps = new Map<string, AssistantPlanStepRecord[]>();
+  private commandShortcuts = new Map<string, CommandShortcutRecord>();
+  private commandUsage = new Map<string, CommandUsageRecord>();
+  private commandLearning = new Map<string, CommandLearningRecord>();
+  private userSettings = new Map<string, string>();
+  private reminders = new Map<string, ReminderRecord>();
 
   async createUser(input: { email: string; displayName: string; passwordHash?: string }) {
     const existing = [...this.users.values()].find((user) => user.email === input.email);
@@ -96,6 +118,12 @@ export class InMemoryRepository implements Repository {
     if (input.deviceId) session.deviceId = input.deviceId;
     this.sessions.set(session.id, session);
     return session;
+  }
+
+  async findActiveSessionByTokenHash(tokenHash: string) {
+    return [...this.sessions.values()].find(
+      (session) => session.tokenHash === tokenHash && new Date(session.expiresAt).getTime() > Date.now()
+    );
   }
 
   async createContact(input: { userId: string; displayName: string; notes?: string }) {
@@ -312,6 +340,76 @@ export class InMemoryRepository implements Repository {
     if (!plan || plan.userId !== userId) return undefined;
     return { plan, steps: this.planSteps.get(planId) ?? [] };
   }
+
+  async listCommandShortcuts(userId: string) {
+    return [...this.commandShortcuts.values()].filter((item) => item.userId === userId);
+  }
+
+  async getCommandShortcut(userId: string, shortcut: string) {
+    const normalized = shortcut.trim().toLowerCase();
+    return [...this.commandShortcuts.values()].find(
+      (item) => item.userId === userId && item.shortcut.toLowerCase() === normalized && item.confirmed && item.isActive
+    );
+  }
+
+  async createCommandShortcut(input: Omit<CommandShortcutRecord, "id" | "createdAt" | "updatedAt">) {
+    const existing = await this.getCommandShortcut(input.userId, input.shortcut);
+    if (existing) {
+      return (await this.updateCommandShortcut(input.userId, existing.id, input))!;
+    }
+    const now = new Date().toISOString();
+    const record: CommandShortcutRecord = { ...input, id: createId("cmds"), createdAt: now, updatedAt: now };
+    this.commandShortcuts.set(record.id, record);
+    return record;
+  }
+
+  async updateCommandShortcut(userId: string, id: string, input: Partial<Pick<CommandShortcutRecord, "shortcut" | "intent" | "paramsJson" | "confidence" | "confirmed" | "isActive">>) {
+    const current = this.commandShortcuts.get(id);
+    if (!current || current.userId !== userId) return undefined;
+    const next = { ...current, ...input, updatedAt: new Date().toISOString() };
+    this.commandShortcuts.set(id, next);
+    return next;
+  }
+
+  async deleteCommandShortcut(userId: string, id: string) {
+    const current = this.commandShortcuts.get(id);
+    if (!current || current.userId !== userId) return false;
+    return this.commandShortcuts.delete(id);
+  }
+
+  async createCommandUsage(input: Omit<CommandUsageRecord, "id" | "createdAt">) {
+    const record: CommandUsageRecord = { ...input, id: createId("cmdu"), createdAt: new Date().toISOString() };
+    this.commandUsage.set(record.id, record);
+    return record;
+  }
+
+  async listCommandUsage(userId: string) {
+    return [...this.commandUsage.values()].filter((item) => item.userId === userId);
+  }
+
+  async createCommandLearning(input: Omit<CommandLearningRecord, "id" | "createdAt">) {
+    const record: CommandLearningRecord = { ...input, id: createId("cmdl"), createdAt: new Date().toISOString() };
+    this.commandLearning.set(record.id, record);
+    return record;
+  }
+
+  async getUserSetting(userId: string, key: string) {
+    return this.userSettings.get(`${userId}:${key}`);
+  }
+
+  async setUserSetting(userId: string, key: string, value: string) {
+    this.userSettings.set(`${userId}:${key}`, value);
+  }
+
+  async createReminder(input: { userId: string; title: string; dueAt?: string }) {
+    const record: ReminderRecord = { id: createId("rem"), userId: input.userId, title: input.title, status: "active", createdAt: new Date().toISOString(), ...(input.dueAt ? { dueAt: input.dueAt } : {}) };
+    this.reminders.set(record.id, record);
+    return record;
+  }
+
+  async listReminders(userId: string) {
+    return [...this.reminders.values()].filter((item) => item.userId === userId && item.status === "active");
+  }
 }
 
 type DbUserRow = { id: string; email: string; display_name: string; password_hash: string | null; created_at: string };
@@ -325,6 +423,10 @@ type DbVoiceSettingsRow = { user_id: string; tts_enabled: number; stt_enabled: n
 type DbActionRow = { id: string; user_id: string; conversation_id: string | null; tool_name: string; risk_level: "low" | "medium" | "high"; status: AssistantActionRecord["status"]; input_json: string; result_json: string | null; created_at: string; updated_at: string };
 type DbPlanRow = { id: string; user_id: string; conversation_id: string | null; status: AssistantPlanRecord["status"]; title: string; goal: string; risk_level: "low" | "medium" | "high"; created_at: string; updated_at: string };
 type DbPlanStepRow = { id: string; plan_id: string; order_index: number; title: string; description: string | null; tool_name: string | null; status: string; requires_confirmation: number; result_json: string | null };
+type DbSessionRow = { id: string; user_id: string; token_hash: string; device_id: string | null; expires_at: string; created_at: string };
+type DbCommandShortcutRow = { id: string; user_id: string; shortcut: string; intent: string; params_json: string; confidence: number; confirmed: number; is_active: number; created_at: string; updated_at: string };
+type DbCommandUsageRow = { id: string; user_id: string; command_name: string | null; input_text: string; matched_pattern: string | null; confidence: number; used_ai_fallback: number; estimated_tokens_saved: number; status: string; created_at: string };
+type DbReminderRow = { id: string; user_id: string; title: string; due_at: string | null; status: string; created_at: string };
 
 export class D1Repository implements Repository {
   constructor(private readonly db: D1Database) {}
@@ -368,6 +470,14 @@ export class D1Repository implements Repository {
       .bind(session.id, session.userId, session.tokenHash, session.deviceId ?? null, session.expiresAt, session.createdAt)
       .run();
     return session;
+  }
+
+  async findActiveSessionByTokenHash(tokenHash: string) {
+    const row = await this.db
+      .prepare(`SELECT id, user_id, token_hash, device_id, expires_at, created_at FROM user_sessions WHERE token_hash = ? AND expires_at > ? LIMIT 1`)
+      .bind(tokenHash, new Date().toISOString())
+      .first<DbSessionRow>();
+    return row ? mapSession(row) : undefined;
   }
 
   async createContact(input: { userId: string; displayName: string; notes?: string }) {
@@ -693,6 +803,73 @@ export class D1Repository implements Repository {
       .all<DbPlanStepRow>();
     return { plan: mapPlan(planRow), steps: steps.results.map(mapPlanStep) };
   }
+
+  async listCommandShortcuts(userId: string) {
+    const result = await this.db.prepare(`SELECT id, user_id, shortcut, intent, params_json, confidence, confirmed, is_active, created_at, updated_at FROM user_command_shortcuts WHERE user_id = ? ORDER BY shortcut`).bind(userId).all<DbCommandShortcutRow>();
+    return result.results.map(mapCommandShortcut);
+  }
+
+  async getCommandShortcut(userId: string, shortcut: string) {
+    const row = await this.db.prepare(`SELECT id, user_id, shortcut, intent, params_json, confidence, confirmed, is_active, created_at, updated_at FROM user_command_shortcuts WHERE user_id = ? AND lower(shortcut) = lower(?) AND confirmed = 1 AND is_active = 1 LIMIT 1`).bind(userId, shortcut.trim()).first<DbCommandShortcutRow>();
+    return row ? mapCommandShortcut(row) : undefined;
+  }
+
+  async createCommandShortcut(input: Omit<CommandShortcutRecord, "id" | "createdAt" | "updatedAt">) {
+    const now = new Date().toISOString();
+    const record: CommandShortcutRecord = { ...input, id: createId("cmds"), createdAt: now, updatedAt: now };
+    await this.db.prepare(`INSERT INTO user_command_shortcuts (id, user_id, shortcut, intent, params_json, confidence, confirmed, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, shortcut) DO UPDATE SET intent = excluded.intent, params_json = excluded.params_json, confidence = excluded.confidence, confirmed = excluded.confirmed, is_active = excluded.is_active, updated_at = excluded.updated_at`).bind(record.id, record.userId, record.shortcut, record.intent, record.paramsJson, record.confidence, record.confirmed ? 1 : 0, record.isActive ? 1 : 0, now, now).run();
+    return (await this.getCommandShortcut(record.userId, record.shortcut)) ?? record;
+  }
+
+  async updateCommandShortcut(userId: string, id: string, input: Partial<Pick<CommandShortcutRecord, "shortcut" | "intent" | "paramsJson" | "confidence" | "confirmed" | "isActive">>) {
+    const current = (await this.listCommandShortcuts(userId)).find((item) => item.id === id);
+    if (!current) return undefined;
+    const next = { ...current, ...input, updatedAt: new Date().toISOString() };
+    await this.db.prepare(`UPDATE user_command_shortcuts SET shortcut = ?, intent = ?, params_json = ?, confidence = ?, confirmed = ?, is_active = ?, updated_at = ? WHERE id = ? AND user_id = ?`).bind(next.shortcut, next.intent, next.paramsJson, next.confidence, next.confirmed ? 1 : 0, next.isActive ? 1 : 0, next.updatedAt, id, userId).run();
+    return next;
+  }
+
+  async deleteCommandShortcut(userId: string, id: string) {
+    const result = await this.db.prepare(`DELETE FROM user_command_shortcuts WHERE id = ? AND user_id = ?`).bind(id, userId).run();
+    return (result.meta.changes ?? 0) > 0;
+  }
+
+  async createCommandUsage(input: Omit<CommandUsageRecord, "id" | "createdAt">) {
+    const record: CommandUsageRecord = { ...input, id: createId("cmdu"), createdAt: new Date().toISOString() };
+    await this.db.prepare(`INSERT INTO command_usage_events (id, user_id, command_name, input_text, matched_pattern, confidence, used_ai_fallback, estimated_tokens_saved, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(record.id, record.userId, record.commandName ?? null, record.inputText, record.matchedPattern ?? null, record.confidence, record.usedAiFallback ? 1 : 0, record.estimatedTokensSaved, record.status, record.createdAt).run();
+    return record;
+  }
+
+  async listCommandUsage(userId: string) {
+    const result = await this.db.prepare(`SELECT id, user_id, command_name, input_text, matched_pattern, confidence, used_ai_fallback, estimated_tokens_saved, status, created_at FROM command_usage_events WHERE user_id = ? ORDER BY created_at DESC`).bind(userId).all<DbCommandUsageRow>();
+    return result.results.map(mapCommandUsage);
+  }
+
+  async createCommandLearning(input: Omit<CommandLearningRecord, "id" | "createdAt">) {
+    const record: CommandLearningRecord = { ...input, id: createId("cmdl"), createdAt: new Date().toISOString() };
+    await this.db.prepare(`INSERT INTO command_learning_events (id, user_id, source_text, suggested_shortcut, intent, params_json, confirmed, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).bind(record.id, record.userId, record.sourceText, record.suggestedShortcut, record.intent, record.paramsJson, record.confirmed ? 1 : 0, record.createdAt).run();
+    return record;
+  }
+
+  async getUserSetting(userId: string, key: string) {
+    const row = await this.db.prepare(`SELECT value FROM user_settings WHERE user_id = ? AND key = ? LIMIT 1`).bind(userId, key).first<{ value: string }>();
+    return row?.value;
+  }
+
+  async setUserSetting(userId: string, key: string, value: string) {
+    await this.db.prepare(`INSERT INTO user_settings (id, user_id, key, value, updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`).bind(createId("set"), userId, key, value, new Date().toISOString()).run();
+  }
+
+  async createReminder(input: { userId: string; title: string; dueAt?: string }) {
+    const record: ReminderRecord = { id: createId("rem"), userId: input.userId, title: input.title, status: "active", createdAt: new Date().toISOString(), ...(input.dueAt ? { dueAt: input.dueAt } : {}) };
+    await this.db.prepare(`INSERT INTO reminders (id, user_id, title, due_at, status, created_at) VALUES (?, ?, ?, ?, ?, ?)`).bind(record.id, record.userId, record.title, record.dueAt ?? null, record.status, record.createdAt).run();
+    return record;
+  }
+
+  async listReminders(userId: string) {
+    const result = await this.db.prepare(`SELECT id, user_id, title, due_at, status, created_at FROM reminders WHERE user_id = ? AND status = 'active' ORDER BY created_at DESC`).bind(userId).all<DbReminderRow>();
+    return result.results.map((row) => ({ id: row.id, userId: row.user_id, title: row.title, status: row.status, createdAt: row.created_at, ...(row.due_at ? { dueAt: row.due_at } : {}) }));
+  }
 }
 
 const memoryRepository = new InMemoryRepository();
@@ -703,6 +880,21 @@ const mapUser = (row: DbUserRow): UserRecord => {
   const user: UserRecord = { id: row.id, email: row.email, displayName: row.display_name, createdAt: row.created_at };
   if (row.password_hash) user.passwordHash = row.password_hash;
   return user;
+};
+
+const mapSession = (row: DbSessionRow): SessionRecord => {
+  const record: SessionRecord = { id: row.id, userId: row.user_id, tokenHash: row.token_hash, expiresAt: row.expires_at, createdAt: row.created_at };
+  if (row.device_id) record.deviceId = row.device_id;
+  return record;
+};
+
+const mapCommandShortcut = (row: DbCommandShortcutRow): CommandShortcutRecord => ({ id: row.id, userId: row.user_id, shortcut: row.shortcut, intent: row.intent, paramsJson: row.params_json, confidence: row.confidence, confirmed: row.confirmed === 1, isActive: row.is_active === 1, createdAt: row.created_at, updatedAt: row.updated_at });
+
+const mapCommandUsage = (row: DbCommandUsageRow): CommandUsageRecord => {
+  const record: CommandUsageRecord = { id: row.id, userId: row.user_id, inputText: row.input_text, confidence: row.confidence, usedAiFallback: row.used_ai_fallback === 1, estimatedTokensSaved: row.estimated_tokens_saved, status: row.status, createdAt: row.created_at };
+  if (row.command_name) record.commandName = row.command_name;
+  if (row.matched_pattern) record.matchedPattern = row.matched_pattern;
+  return record;
 };
 
 const mapContact = (row: DbContactRow): ContactRecord => {

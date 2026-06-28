@@ -91,6 +91,15 @@
 - Google OAuth default scopes include YouTube readonly.
 - Tool registry includes YouTube read metadata.
 
+## v0.10.0
+
+- Command Registry and deterministic router before AI.
+- Initial alarm, reminder, app, Spotify, YouTube, update, calendar and communication commands.
+- Private shortcuts, learning events and token-saving metrics in D1.
+- Verified session auth for Assistant and command endpoints.
+- Command action/plan persistence and confirmation policy.
+- Web command catalog, shortcut CRUD and usage totals.
+
 ## v0.2.0
 
 - Google OAuth.

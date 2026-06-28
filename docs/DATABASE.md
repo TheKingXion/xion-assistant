@@ -1,6 +1,6 @@
 # Database
 
-D1 migration: `workers/api/migrations/0001_initial.sql`.
+D1 migrations: `workers/api/migrations/0001_initial.sql` and `0002_command_registry.sql`.
 
 Personal tables include `user_id` where applicable. This is mandatory for multiuser isolation.
 
@@ -20,3 +20,7 @@ Important tables:
 - `available_voices`
 - `app_versions`
 - `ai_usage`
+- `command_definitions`
+- `user_command_shortcuts`
+- `command_usage_events`
+- `command_learning_events`

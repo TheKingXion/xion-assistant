@@ -1,5 +1,5 @@
 import { zValidator } from "@hono/zod-validator";
-import { assistantRequestSchema, updateManifestSchema, voiceSettingsSchema } from "@xion-assistant/shared";
+import { assistantRequestSchema, commandMatchSchema, commandShortcutSchema, updateManifestSchema, voiceSettingsSchema } from "@xion-assistant/shared";
 import { listVoices, synthesizeSpeech } from "@xion-assistant/voice";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
@@ -15,8 +15,12 @@ import { getSpotifyPlayback } from "./services/spotify";
 import { getTool, listTools } from "./services/tool-registry";
 import { listYouTubeSubscriptions, searchYouTube } from "./services/youtube";
 import type { Env } from "./types";
+import { requireAuth, type AuthVariables } from "./middleware/auth";
+import { commandRegistry, publicCommandDefinition } from "./modules/commands/command-registry";
+import { routeCommand } from "./modules/commands/command-router";
+import { learnCommandShortcut } from "./modules/commands/learned-commands.service";
 
-export const app = new Hono<{ Bindings: Env }>();
+export const app = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
 
 const aiConfigFromEnv = (env: Env): AiGatewayConfig => {
   const config: AiGatewayConfig = {};
@@ -30,10 +34,9 @@ const aiConfigFromEnv = (env: Env): AiGatewayConfig => {
 app.use(
   "*",
   cors({
-    origin: (origin, c) => origin || c.env.PUBLIC_WEB_URL || "http://localhost:5173",
+    origin: "*",
     allowHeaders: ["Content-Type", "Authorization"],
-    allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    credentials: true
+    allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
   })
 );
 
@@ -41,7 +44,7 @@ app.get("/api/health", (c) =>
   c.json({
     ok: true,
     name: "xion-assistant-api",
-    version: "0.9.0",
+    version: "0.10.0",
     routes: {
       web: c.env.PUBLIC_WEB_URL,
       api: c.env.PUBLIC_API_URL
@@ -57,16 +60,17 @@ const authSchema = z.object({
 
 app.post("/api/auth/register", zValidator("json", authSchema), async (c) => {
   const body = c.req.valid("json");
-  const passwordHash = await hashPassword(body.password);
   const repository = createRepository(c.env.DB);
+  if (await repository.findUserByEmail(body.email)) return c.json({ ok: false, error: "email_already_registered" }, 409);
+  const passwordHash = await hashPassword(body.password);
   const user = await repository.createUser({
     email: body.email,
     displayName: body.displayName ?? body.email.split("@")[0] ?? "User",
     passwordHash
   });
-  const token = await createSessionToken(user.id, c.env.JWT_SECRET);
-  const tokenHash = await hashPassword(token);
   const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30).toISOString();
+  const token = await createSessionToken(user.id, c.env.JWT_SECRET, new Date(expiresAt).getTime());
+  const tokenHash = await hashPassword(token);
   const session = await repository.createSession({ userId: user.id, tokenHash, expiresAt });
   return c.json({
     ok: true,
@@ -83,9 +87,9 @@ app.post("/api/auth/login", zValidator("json", authSchema.omit({ displayName: tr
   if (!user?.passwordHash || !(await verifyPassword(body.password, user.passwordHash))) {
     return c.json({ ok: false, error: "invalid_credentials" }, 401);
   }
-  const token = await createSessionToken(user.id, c.env.JWT_SECRET);
-  const tokenHash = await hashPassword(token);
   const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30).toISOString();
+  const token = await createSessionToken(user.id, c.env.JWT_SECRET, new Date(expiresAt).getTime());
+  const tokenHash = await hashPassword(token);
   const session = await repository.createSession({ userId: user.id, tokenHash, expiresAt });
   return c.json({
     ok: true,
@@ -559,11 +563,77 @@ app.get("/api/google/youtube/subscriptions", async (c) => {
   }
 });
 
+app.use("/api/assistant/message", requireAuth);
 app.post("/api/assistant/message", zValidator("json", assistantRequestSchema), async (c) => {
   const body = c.req.valid("json");
   const repository = createRepository(c.env.DB);
   const aiGateway = createAiGateway(aiConfigFromEnv(c.env));
-  return c.json(await handleAssistantMessage(repository, aiGateway, body));
+  const input = {
+    userId: c.get("userId"),
+    message: body.message,
+    spokenResponse: body.spokenResponse,
+    platform: body.platform,
+    ...(body.timezone ? { timezone: body.timezone } : {})
+  };
+  return c.json(await handleAssistantMessage(repository, aiGateway, input));
+});
+
+app.use("/api/commands", requireAuth);
+app.use("/api/commands/*", requireAuth);
+
+app.get("/api/commands", (c) => c.json({ ok: true, commands: commandRegistry.map(publicCommandDefinition) }));
+
+app.get("/api/commands/shortcuts", async (c) => {
+  const shortcuts = await createRepository(c.env.DB).listCommandShortcuts(c.get("userId"));
+  return c.json({ ok: true, shortcuts: shortcuts.map((item) => ({ ...item, params: JSON.parse(item.paramsJson), paramsJson: undefined })) });
+});
+
+app.post("/api/commands/shortcuts", zValidator("json", commandShortcutSchema), async (c) => {
+  const body = c.req.valid("json");
+  if (!commandRegistry.some((command) => command.name === body.intent)) return c.json({ ok: false, error: "command_not_found" }, 400);
+  const shortcut = await createRepository(c.env.DB).createCommandShortcut({
+    userId: c.get("userId"), shortcut: body.shortcut, intent: body.intent, paramsJson: JSON.stringify(body.params), confidence: body.confidence, confirmed: body.confirmed, isActive: body.isActive
+  });
+  return c.json({ ok: true, shortcut: { ...shortcut, params: JSON.parse(shortcut.paramsJson), paramsJson: undefined } }, 201);
+});
+
+app.put("/api/commands/shortcuts/:id", zValidator("json", commandShortcutSchema.partial()), async (c) => {
+  const body = c.req.valid("json");
+  if (body.intent && !commandRegistry.some((command) => command.name === body.intent)) return c.json({ ok: false, error: "command_not_found" }, 400);
+  const patch: { shortcut?: string; intent?: string; paramsJson?: string; confidence?: number; confirmed?: boolean; isActive?: boolean } = {};
+  if (body.shortcut !== undefined) patch.shortcut = body.shortcut;
+  if (body.intent !== undefined) patch.intent = body.intent;
+  if (body.params !== undefined) patch.paramsJson = JSON.stringify(body.params);
+  if (body.confidence !== undefined) patch.confidence = body.confidence;
+  if (body.confirmed !== undefined) patch.confirmed = body.confirmed;
+  if (body.isActive !== undefined) patch.isActive = body.isActive;
+  const shortcut = await createRepository(c.env.DB).updateCommandShortcut(c.get("userId"), c.req.param("id"), patch);
+  if (!shortcut) return c.json({ ok: false, error: "shortcut_not_found" }, 404);
+  return c.json({ ok: true, shortcut: { ...shortcut, params: JSON.parse(shortcut.paramsJson), paramsJson: undefined } });
+});
+
+app.delete("/api/commands/shortcuts/:id", async (c) => {
+  const deleted = await createRepository(c.env.DB).deleteCommandShortcut(c.get("userId"), c.req.param("id"));
+  if (!deleted) return c.json({ ok: false, error: "shortcut_not_found" }, 404);
+  return c.json({ ok: true, deleted: true });
+});
+
+app.post("/api/commands/match", zValidator("json", commandMatchSchema), async (c) => {
+  const body = c.req.valid("json");
+  const routed = await routeCommand(createRepository(c.env.DB), { userId: c.get("userId"), text: body.text, timezone: body.timezone });
+  if (routed.kind === "fallback") return c.json({ matched: false, confidence: routed.match.confidence, params: {}, usedAiFallback: true });
+  return c.json(routed.result);
+});
+
+app.post("/api/commands/learn", zValidator("json", z.object({ sourceText: z.string().min(1), shortcut: z.string().min(1), intent: z.string().min(1), params: z.record(z.unknown()).default({}), confirmed: z.boolean().default(false) })), async (c) => {
+  const body = c.req.valid("json");
+  if (!commandRegistry.some((command) => command.name === body.intent)) return c.json({ ok: false, error: "command_not_found" }, 400);
+  return c.json({ ok: true, ...(await learnCommandShortcut(createRepository(c.env.DB), { userId: c.get("userId"), ...body })) }, 201);
+});
+
+app.get("/api/commands/usage", async (c) => {
+  const events = await createRepository(c.env.DB).listCommandUsage(c.get("userId"));
+  return c.json({ ok: true, events, totals: { uses: events.filter((item) => !item.usedAiFallback).length, aiFallbacks: events.filter((item) => item.usedAiFallback).length, estimatedTokensSaved: events.reduce((sum, item) => sum + item.estimatedTokensSaved, 0) } });
 });
 
 app.post("/api/assistant/plan", zValidator("json", z.object({ userId: z.string().min(1), goal: z.string().min(1) })), async (c) => {
