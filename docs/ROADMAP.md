@@ -100,6 +100,12 @@
 - Command action/plan persistence and confirmation policy.
 - Web command catalog, shortcut CRUD and usage totals.
 
+## v0.10.1
+
+- Cloudflare setup documentation rewritten in Xion-TV dashboard style.
+- D1, R2, Worker, Pages, bindings, secrets, domains, GitHub secrets and validation checklist documented step by step.
+- `START_FROM_ZERO.md` now points to the full dashboard deployment flow.
+
 ## v0.2.0
 
 - Google OAuth.

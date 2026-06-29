@@ -1,8 +1,29 @@
 # START FROM ZERO
 
-Estado: `v0.10.0` foundation. Incluye Command Registry autenticado, shortcuts privados, metricas, UI y migracion `0002`. Deploy real requiere recursos y secrets Cloudflare.
+Estado: `v0.10.1` foundation. Incluye Command Registry autenticado, shortcuts privados, metricas, UI, migracion `0002` y guia Cloudflare estilo dashboard. Deploy real requiere recursos y secrets Cloudflare.
 
 ## Cloudflare: Worker, Pages, D1 y R2
+
+Guia completa estilo Xion-TV: `docs/SETUP_CLOUDFLARE.md`.
+
+Orden desde dashboard:
+
+1. Crear D1 `xion-assistant`.
+2. Aplicar migraciones `workers/api/migrations/0001_initial.sql` y `0002_command_registry.sql`.
+3. Crear R2 `xion-assistant-releases`.
+4. Crear Worker `xion-assistant-api`.
+5. Conectar Worker a Git con root `workers/api`.
+6. Crear bindings `DB` y `RELEASES`.
+7. Configurar variables/secrets del Worker.
+8. Asignar dominio Worker `api.asst.xion.<TU_DOMINIO>`.
+9. Crear Pages `xion-assistant`.
+10. Conectar Pages a Git con output `apps/web/dist`.
+11. Configurar `VITE_PUBLIC_API_URL`.
+12. Asignar dominio Pages `assistant.xion.<TU_DOMINIO>`.
+13. Configurar GitHub Secrets.
+14. Probar health, web, login, Command Registry y R2.
+
+Comandos equivalentes:
 
 ```powershell
 pnpm exec wrangler login
