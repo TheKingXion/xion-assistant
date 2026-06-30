@@ -2,12 +2,19 @@ name: Build Android
 
 on:
   workflow_dispatch:
+  push:
+    tags:
+      - "v*"
 
 jobs:
   build-android:
     runs-on: ubuntu-latest
     env:
       R2_BUCKET_NAME: ${{ vars.R2_BUCKET_NAME }}
+      PUBLIC_API_URL: ${{ vars.PUBLIC_API_URL }}
+      EXPO_PUBLIC_API_URL: ${{ vars.PUBLIC_API_URL }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -17,14 +24,52 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@v3
       - run: pnpm install --frozen-lockfile
-      - run: pnpm build
-      - name: Placeholder Android artifact gate
+      - run: pnpm test
+      - run: pnpm --filter @xion-assistant/mobile prebuild:android
+      - name: Decode Android signing key
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          test -n "$ANDROID_KEYSTORE_BASE64"
+          test -n "$ANDROID_KEYSTORE_PASSWORD"
+          test -n "$ANDROID_KEY_ALIAS"
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > apps/mobile/android/app/xion-release.keystore
+          {
+            echo "ANDROID_KEYSTORE_FILE=xion-release.keystore"
+            echo "ANDROID_KEYSTORE_PASSWORD=$ANDROID_KEYSTORE_PASSWORD"
+            echo "ANDROID_KEY_ALIAS=$ANDROID_KEY_ALIAS"
+          } >> apps/mobile/android/gradle.properties
+      - run: node scripts/patch-expo-android-signing.mjs
+      - run: pnpm --filter @xion-assistant/mobile build:android:release
+      - name: Prepare Android release files
         run: |
           mkdir -p dist/releases/mobile/android
-          echo "Android Expo APK not implemented in v0.0.1" > dist/releases/mobile/android/README.txt
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [ "$VERSION" = "$GITHUB_REF_NAME" ]; then VERSION="$(node -p "require('./apps/mobile/package.json').version")"; fi
+          APK="dist/releases/mobile/android/xion-assistant-${VERSION}.apk"
+          cp apps/mobile/android/app/build/outputs/apk/release/app-release.apk "$APK"
+          SHA256="$(sha256sum "$APK" | cut -d ' ' -f 1)"
+          SIZE="$(wc -c < "$APK")"
+          export VERSION SHA256 SIZE
+          node -e "const fs=require('fs'); const version=process.env.VERSION; const api=process.env.PUBLIC_API_URL; const sha=process.env.SHA256; const size=Number(process.env.SIZE); fs.writeFileSync('dist/releases/mobile/android/latest.json', JSON.stringify({version, platform:'android', channel:'stable', download_url:api + '/releases/mobile/android/xion-assistant-' + version + '.apk', sha256:sha, size, changelog:'Xion Assistant Android voice-first app.', required:false, min_supported_version:'0.12.0', published_at:new Date().toISOString()}, null, 2));" 
       - run: pnpm release:checksums dist/releases dist/releases/checksums.json
       - uses: actions/upload-artifact@v4
         with:
-          name: android-release-placeholder
+          name: android-release
           path: dist/releases
+      - name: Upload Android APK to R2
+        if: env.R2_BUCKET_NAME != ''
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [ "$VERSION" = "$GITHUB_REF_NAME" ]; then VERSION="$(node -p "require('./apps/mobile/package.json').version")"; fi
+          npx wrangler r2 object put "$R2_BUCKET_NAME/mobile/android/xion-assistant-${VERSION}.apk" --file "dist/releases/mobile/android/xion-assistant-${VERSION}.apk"
+          npx wrangler r2 object put "$R2_BUCKET_NAME/mobile/android/latest.json" --file "dist/releases/mobile/android/latest.json"
+          npx wrangler r2 object put "$R2_BUCKET_NAME/checksums.json" --file "dist/releases/checksums.json"

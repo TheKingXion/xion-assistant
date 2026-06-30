@@ -4,7 +4,7 @@ import { listVoices, synthesizeSpeechAsync } from "@xion-assistant/voice";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { z } from "zod";
-import { createAiGateway, type AiGatewayConfig } from "./services/ai-gateway";
+import { createAiGateway, transcribeAudio, type AiGatewayConfig } from "./services/ai-gateway";
 import { executeConfirmedAction } from "./services/action-executor";
 import { handleAssistantMessage } from "./services/assistant-engine";
 import { listGoogleCalendarEvents } from "./services/google-calendar";
@@ -28,6 +28,7 @@ const aiConfigFromEnv = (env: Env): AiGatewayConfig => {
   if (env.AI_API_KEY !== undefined) config.apiKey = env.AI_API_KEY;
   if (env.AI_MODEL !== undefined) config.model = env.AI_MODEL;
   if (env.AI_SMALL_MODEL !== undefined) config.smallModel = env.AI_SMALL_MODEL;
+  if (env.AI_STT_MODEL !== undefined) config.sttModel = env.AI_STT_MODEL;
   return config;
 };
 
@@ -53,13 +54,23 @@ app.get("/api/health", (c) =>
   c.json({
     ok: true,
     name: "xion-assistant-api",
-    version: "0.11.4",
+    version: "0.12.0",
     routes: {
       web: c.env.PUBLIC_WEB_URL,
       api: c.env.PUBLIC_API_URL
     }
   })
 );
+
+const RELEASE_VERSION = "0.12.0";
+
+const releaseContentType = (path: string) => {
+  if (path.endsWith(".apk")) return "application/vnd.android.package-archive";
+  if (path.endsWith(".exe")) return "application/vnd.microsoft.portable-executable";
+  if (path.endsWith(".json")) return "application/json; charset=UTF-8";
+  if (path.endsWith(".sha256")) return "text/plain; charset=UTF-8";
+  return "application/octet-stream";
+};
 
 const authSchema = z.object({
   email: z.string().email(),
@@ -913,38 +924,80 @@ app.post(
   }
 );
 
-app.post("/api/voice/transcribe", () =>
-  new Response(JSON.stringify({ ok: false, error: "stt_provider_not_configured_in_v0.4.0" }), {
-    status: 501,
-    headers: { "content-type": "application/json" }
-  })
+app.use("/api/voice/transcribe", requireAuth);
+app.post(
+  "/api/voice/transcribe",
+  zValidator(
+    "json",
+    z.object({
+      audio_base64: z.string().min(1).max(12_000_000),
+      mime_type: z.string().min(3).max(120).default("audio/mp4"),
+      language: z.string().min(2).max(16).default("es-CL")
+    })
+  ),
+  async (c) => {
+    const body = c.req.valid("json");
+    try {
+      const result = await transcribeAudio(aiConfigFromEnv(c.env), {
+        audioBase64: body.audio_base64,
+        mimeType: body.mime_type,
+        language: body.language
+      });
+      return c.json({ ok: true, text: result.text, usage: result.usage });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "voice_transcribe_failed";
+      return c.json({ ok: false, error: message }, 502);
+    }
+  }
 );
 
-app.get("/api/updates/latest", (c) => {
+app.get("/releases/*", async (c) => {
+  if (!c.env.RELEASES) return c.json({ ok: false, error: "r2_releases_binding_required" }, 500);
+  const key = c.req.path.replace(/^\/releases\//, "");
+  if (!key || key.includes("..")) return c.json({ ok: false, error: "invalid_release_path" }, 400);
+  const object = await c.env.RELEASES.get(key);
+  if (!object) return c.json({ ok: false, error: "release_not_found", key }, 404);
+  const headers = new Headers();
+  object.writeHttpMetadata(headers);
+  headers.set("etag", object.httpEtag);
+  headers.set("content-type", headers.get("content-type") ?? releaseContentType(key));
+  headers.set("cache-control", key.includes("/latest/") ? "no-store" : "public, max-age=31536000, immutable");
+  return new Response(object.body, { headers });
+});
+
+app.get("/api/updates/latest", async (c) => {
   const platform = c.req.query("platform");
   const channel = c.req.query("channel") ?? "stable";
   const arch = c.req.query("arch") ?? (platform === "windows" ? "x64" : undefined);
   const apiBase = c.env.PUBLIC_API_URL || "https://api.asst.xion.example.com";
+  if (platform !== "windows" && platform !== "android") {
+    return c.json({ ok: false, error: "platform_must_be_windows_or_android" }, 400);
+  }
+
+  if (platform === "android" && c.env.RELEASES) {
+    const stored = await c.env.RELEASES.get("mobile/android/latest.json");
+    if (stored) {
+      const manifest = updateManifestSchema.parse(await stored.json());
+      return c.json({ ok: true, manifest });
+    }
+  }
+
   const manifest = {
-    version: "0.0.1",
+    version: RELEASE_VERSION,
     platform,
     arch,
     channel,
     download_url:
       platform === "android"
-        ? `${apiBase}/releases/mobile/android/xion-assistant-0.0.1.apk`
-        : `${apiBase}/releases/desktop/windows/xion-assistant-setup-0.0.1.exe`,
+        ? `${apiBase}/releases/mobile/android/xion-assistant-${RELEASE_VERSION}.apk`
+        : `${apiBase}/releases/desktop/windows/xion-assistant-setup-${RELEASE_VERSION}.exe`,
     sha256: "0".repeat(64),
     size: 1,
-    changelog: "Initial v0.0.1 foundation manifest. Real artifacts must be uploaded to R2 before release.",
+    changelog: "Mobile Android app with voice-first chat, TTS playback, STT upload and R2 download route.",
     required: false,
-    min_supported_version: "0.0.1",
-    published_at: "2026-06-28T00:00:00.000Z"
+    min_supported_version: "0.12.0",
+    published_at: "2026-06-30T00:00:00.000Z"
   };
-
-  if (platform !== "windows" && platform !== "android") {
-    return c.json({ ok: false, error: "platform_must_be_windows_or_android" }, 400);
-  }
 
   return c.json({ ok: true, manifest: updateManifestSchema.parse(manifest) });
 });

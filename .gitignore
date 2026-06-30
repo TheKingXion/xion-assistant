@@ -4,3 +4,6 @@ dist/
 .env
 .env.local
 *.log
+.secrets/
+apps/mobile/android/
+apps/mobile/ios/

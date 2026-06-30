@@ -1,0 +1,35 @@
+{
+  "name": "@xion-assistant/mobile",
+  "version": "0.12.0",
+  "private": true,
+  "type": "module",
+  "main": "expo/AppEntry.js",
+  "scripts": {
+    "dev": "expo start",
+    "prebuild:android": "expo prebuild --platform android --no-install",
+    "build:android:release": "cd android && ./gradlew assembleRelease",
+    "build": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "android": "expo run:android",
+    "ios": "expo run:ios"
+  },
+  "dependencies": {
+    "@react-native-async-storage/async-storage": "1.23.1",
+    "expo": "~52.0.47",
+    "expo-application": "~6.0.2",
+    "expo-av": "~15.0.2",
+    "expo-constants": "~17.0.8",
+    "expo-file-system": "~18.0.12",
+    "expo-speech": "~13.0.1",
+    "expo-system-ui": "~4.0.9",
+    "react": "18.3.1",
+    "react-native": "0.76.9"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.18",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

@@ -1,6 +1,6 @@
 # Speech To Text
 
-`v0.0.1` has STT endpoint placeholder. Real provider pending.
+`v0.12.0` supports mobile STT through Worker API.
 
 ## Capture
 
@@ -8,19 +8,33 @@ Clients record only after explicit microphone permission. UI must show recording
 
 ## Send Audio
 
-Future clients send a short audio blob to:
+Clients send a short audio blob to:
 
 ```text
 POST /api/voice/transcribe
 ```
 
-## Errors
-
-Current response:
+Payload:
 
 ```json
-{"ok":false,"error":"stt_provider_not_configured_in_v0.0.1"}
+{
+  "audio_base64": "<audio>",
+  "mime_type": "audio/mp4",
+  "language": "es-CL"
+}
 ```
+
+The endpoint requires bearer auth.
+
+## Errors
+
+Response:
+
+```json
+{"ok":true,"text":"transcribed text"}
+```
+
+With `AI_PROVIDER=google`, Worker sends audio to Gemini using `AI_STT_MODEL`.
 
 ## Privacy
 

@@ -6,16 +6,20 @@ Planned R2 layout:
 
 - `/desktop/windows/xion-assistant-setup-<version>.exe`
 - `/mobile/android/xion-assistant-<version>.apk`
-- `/latest/windows.json`
-- `/latest/android.json`
-- `/checksums/`
-- `/changelogs/`
+- `/mobile/android/latest.json`
+- `/checksums.json`
 
 ## Endpoint
 
 ```text
 GET /api/updates/latest?platform=windows&arch=x64&channel=stable
 GET /api/updates/latest?platform=android&channel=stable
+```
+
+Android download URL is proxied by Worker:
+
+```text
+GET /releases/mobile/android/xion-assistant-<version>.apk
 ```
 
 ## Checksum

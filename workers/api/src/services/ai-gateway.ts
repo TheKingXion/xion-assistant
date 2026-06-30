@@ -5,6 +5,7 @@ export type AiGatewayConfig = {
   apiKey?: string;
   model?: string;
   smallModel?: string;
+  sttModel?: string;
 };
 
 export type IntentResult = {
@@ -132,6 +133,45 @@ Reglas: si riesgo high, algun paso debe requerir confirmacion. Goal: ${input.goa
     return { plan, usage: usage({ ...this.config, model: generated.model }, input.goal, generated.text) };
   }
 }
+
+export const transcribeAudio = async (
+  config: AiGatewayConfig,
+  input: { audioBase64: string; mimeType: string; language?: string }
+) => {
+  if (config.provider !== "google") {
+    return {
+      text: "Transcripcion mock de audio movil.",
+      usage: usage(config, input.mimeType, "Transcripcion mock de audio movil.")
+    };
+  }
+  if (!config.apiKey) throw new Error("google_ai_api_key_required");
+  const model = config.sttModel ?? config.smallModel ?? config.model ?? "gemini-2.5-flash";
+  const prompt = `Transcribe este audio en ${input.language ?? "es-CL"}. Devuelve solo el texto transcrito, sin explicaciones.`;
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-goog-api-key": config.apiKey },
+    body: JSON.stringify({
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { text: prompt },
+            { inlineData: { mimeType: input.mimeType, data: input.audioBase64 } }
+          ]
+        }
+      ],
+      generationConfig: {
+        temperature: 0,
+        maxOutputTokens: 180
+      }
+    })
+  });
+  if (!response.ok) throw new Error("google_stt_failed");
+  const payload = await response.json();
+  const text = pickText(payload);
+  if (!text) throw new Error("google_stt_empty_response");
+  return { text, usage: usage({ ...config, model }, input.mimeType, text) };
+};
 
 export class MockAiGateway implements AiGateway {
   constructor(private readonly config: AiGatewayConfig = {}) {}

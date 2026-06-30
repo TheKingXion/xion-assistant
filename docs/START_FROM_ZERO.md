@@ -1,6 +1,6 @@
 # START FROM ZERO
 
-Estado: `v0.11.4` foundation. Incluye Command Registry autenticado, shortcuts privados, metricas, chat/cuenta en `/`, microfono web, TTS no bloqueante, dashboard admin en `/admin`, `is_admin`, mensajes persistidos, tema claro/oscuro, login/registro con Google, Gemini texto/TTS via `generateContent`, migracion `0003`, separacion GitHub variables/secrets, guia Cloudflare cloud-first solo con GitHub/Dashboard, pasos para sacar `CLOUDFLARE_API_TOKEN`, pasos Google OAuth para dominio real y proteccion `keep_vars = true` para que deploys Worker no borren variables del dashboard. Deploy real requiere recursos y secrets Cloudflare.
+Estado: `v0.12.0` foundation. Incluye Command Registry autenticado, shortcuts privados, metricas, chat/cuenta en `/`, microfono web, app Android Expo, descarga APK desde web, STT movil, TTS no bloqueante, dashboard admin en `/admin`, `is_admin`, mensajes persistidos, tema claro/oscuro, login/registro con Google, Gemini texto/TTS/STT via `generateContent`, migracion `0003`, separacion GitHub variables/secrets, guia Cloudflare cloud-first solo con GitHub/Dashboard, pasos para sacar `CLOUDFLARE_API_TOKEN`, pasos Android signing, pasos Google OAuth para dominio real y proteccion `keep_vars = true` para que deploys Worker no borren variables dashboard del Worker.
 
 ## Cloudflare: Worker, Pages, D1 y R2
 
@@ -138,11 +138,9 @@ pnpm exec wrangler r2 bucket create xion-assistant-releases
 Rutas previstas:
 
 - `/desktop/windows/xion-assistant-setup-0.0.1.exe`
-- `/mobile/android/xion-assistant-0.0.1.apk`
-- `/latest/windows.json`
-- `/latest/android.json`
-- `/checksums/`
-- `/changelogs/`
+- `/mobile/android/xion-assistant-0.12.0.apk`
+- `/mobile/android/latest.json`
+- `/checksums.json`
 
 ## 9. Crear tokens/API keys Cloudflare
 
@@ -164,6 +162,9 @@ CLOUDFLARE_ACCOUNT_ID
 CLOUDFLARE_D1_DATABASE_ID
 JWT_SECRET
 TOKEN_ENCRYPTION_KEY
+ANDROID_KEYSTORE_BASE64
+ANDROID_KEYSTORE_PASSWORD
+ANDROID_KEY_ALIAS
 ```
 
 Repository variables actuales:
@@ -174,11 +175,9 @@ PUBLIC_API_URL
 R2_BUCKET_NAME
 ```
 
-Secrets futuros para releases, apps y proveedores:
+Secrets futuros para desktop y proveedores:
 
 ```text
-R2_ACCESS_KEY_ID
-R2_SECRET_ACCESS_KEY
 GOOGLE_CLIENT_ID
 GOOGLE_CLIENT_SECRET
 SPOTIFY_CLIENT_ID
@@ -187,9 +186,6 @@ AI_API_KEY
 AI_SMALL_MODEL
 AI_STT_MODEL
 AI_TTS_MODEL
-ANDROID_KEYSTORE_BASE64
-ANDROID_KEYSTORE_PASSWORD
-ANDROID_KEY_ALIAS
 TAURI_PRIVATE_KEY
 TAURI_KEY_PASSWORD
 ```

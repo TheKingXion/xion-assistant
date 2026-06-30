@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "Xion Assistant",
+    "slug": "xion-assistant",
+    "version": "0.12.0",
+    "orientation": "portrait",
+    "scheme": "xionassistant",
+    "userInterfaceStyle": "dark",
+    "assetBundlePatterns": ["**/*"],
+    "android": {
+      "package": "com.xionscripts.assistant",
+      "versionCode": 12,
+      "permissions": ["RECORD_AUDIO", "INTERNET"]
+    },
+    "plugins": [
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Xion Assistant usa el microfono para escuchar tus comandos."
+        }
+      ]
+    ],
+    "extra": {
+      "apiUrl": "https://api.asst.xion.exiliadosrpv2.uk"
+    }
+  }
+}

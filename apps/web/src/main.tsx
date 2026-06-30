@@ -38,7 +38,7 @@ import {
 import "./styles.css";
 
 const API_URL = import.meta.env.VITE_PUBLIC_API_URL ?? "http://localhost:8787";
-const VERSION = "0.11.4";
+const VERSION = "0.12.0";
 
 type AuthState = { token: string; user: { id: string; email: string; displayName: string; isAdmin: boolean } };
 type View = "dashboard" | "assistant" | "memory" | "contacts" | "voice" | "commands" | "connectors" | "updates" | "settings";
@@ -220,7 +220,7 @@ function UserShell({ api, auth, notify }: { api: ApiClient; auth: AuthState; not
   return (
     <div className="user-home">
       <AssistantPanel api={api} auth={auth} notify={notify} />
-      <AccountPanel user={auth.user} />
+      <AccountPanel api={api} user={auth.user} notify={notify} />
     </div>
   );
 }
@@ -244,7 +244,20 @@ function AdminShell({ api, auth, health, view, setView, notify }: { api: ApiClie
   );
 }
 
-function AccountPanel({ user }: { user: AuthState["user"] }) {
+function AccountPanel({ api, user, notify }: { api: ApiClient; user: AuthState["user"]; notify: (message: string) => void }) {
+  const [busy, setBusy] = useState(false);
+  const downloadAndroid = async () => {
+    setBusy(true);
+    try {
+      const data = await api.get<{ manifest: UpdateManifest }>("/api/updates/latest?platform=android&channel=stable");
+      window.location.href = data.manifest.download_url;
+    } catch (error) {
+      notify(errorMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <PanelShell title="Cuenta" subtitle="Sesion y perfil" icon={<ShieldCheck size={20} />}>
       <div className="settings-list">
@@ -252,6 +265,12 @@ function AccountPanel({ user }: { user: AuthState["user"] }) {
         <InfoRow label="Email" value={user.email} />
         <InfoRow label="Rol" value={user.isAdmin ? "admin" : "usuario"} />
         <InfoRow label="Panel admin" value={user.isAdmin ? "/admin habilitado" : "sin acceso"} />
+      </div>
+      <div className="account-actions">
+        <button className="primary wide" disabled={busy} onClick={() => void downloadAndroid()}>
+          {busy ? <RefreshCcw className="spin" size={16} /> : <Download size={16} />}
+          Descargar app Android
+        </button>
       </div>
     </PanelShell>
   );

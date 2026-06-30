@@ -55,7 +55,7 @@ describe("xion assistant api", () => {
     const json = (await res.json()) as any;
 
     expect(json.ok).toBe(true);
-    expect(json.version).toBe("0.11.4");
+    expect(json.version).toBe("0.12.0");
   });
 
   it("allows bearer API preflight without credentialed CORS", async () => {
@@ -171,6 +171,32 @@ describe("xion assistant api", () => {
     expect(json.ok).toBe(true);
     expect(json.messages.map((item: any) => item.role)).toEqual(["user", "assistant"]);
     expect(json.messages[0].content).toBe("Hola Xion");
+  });
+
+  it("transcribes mobile audio with authenticated mock STT", async () => {
+    const auth = await createAuthenticatedUser("stt-user");
+    const res = await app.request(
+      "/api/voice/transcribe",
+      {
+        method: "POST",
+        body: JSON.stringify({ audio_base64: "AAAA", mime_type: "audio/mp4", language: "es-CL" }),
+        headers: { "content-type": "application/json", authorization: auth.authorization }
+      },
+      env
+    );
+    const json = (await res.json()) as any;
+
+    expect(res.status).toBe(200);
+    expect(json.ok).toBe(true);
+    expect(json.text).toContain("Transcripcion mock");
+  });
+
+  it("points android update manifest to the current R2 release route", async () => {
+    const res = await app.request("/api/updates/latest?platform=android&channel=stable", {}, env);
+    const json = (await res.json()) as any;
+
+    expect(json.manifest.version).toBe("0.12.0");
+    expect(json.manifest.download_url).toBe("http://localhost:8787/releases/mobile/android/xion-assistant-0.12.0.apk");
   });
 
   it("blocks admin endpoints for non-admin users", async () => {

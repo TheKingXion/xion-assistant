@@ -118,7 +118,6 @@
 - Removed duplicate Worker variable sections from Cloudflare docs.
 - Removed placeholder `[[routes]]` and production placeholder vars from `wrangler.toml`.
 - Documented Dashboard custom domain setup to prevent `<TU_DOMINIO>` deploy failures.
-- Added `.dev.vars.example` for local Worker development variables.
 
 ## v0.10.4
 
@@ -181,6 +180,18 @@
 - Added browser microphone input for spoken prompts.
 - Assistant replies always attempt audio, but TTS runs after text response so chat latency drops.
 - Browser speech synthesis fallback keeps audio available if Worker TTS fails.
+
+## v0.12.0
+
+- Expo Android app added under `apps/mobile`.
+- Mobile login/register, voice-first chat UI and quick commands.
+- Mobile TTS always attempts Worker `/api/voice/speak` before native fallback.
+- Mobile microphone records audio and sends it to Worker `/api/voice/transcribe`.
+- Worker STT added for Google Gemini audio input with mock test fallback.
+- Worker `/releases/*` added to serve APK files from R2 binding.
+- Web account panel now has Android download button.
+- GitHub Android workflow now builds signed APK and uploads it to R2.
+- Android signing documentation added.
 
 ## v0.2.0
 

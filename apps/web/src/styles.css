@@ -590,6 +590,7 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
 .manifest dt { color: #64748b; font-weight: 800; }
 .manifest dd { margin: 0; overflow-wrap: anywhere; }
 .settings-list { border: 1px solid #dce6ef; border-radius: 8px; overflow: hidden; }
+.account-actions { margin-top: 16px; }
 .info-row {
   display: grid;
   grid-template-columns: 180px minmax(0, 1fr);
