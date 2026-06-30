@@ -15,6 +15,7 @@ describe("command registry", () => {
     ["despiertame a las 7", "alarm.create", { time: "07:00" }],
     ["pon alarma a las seis cuarenta y cinco", "alarm.create", { time: "06:45" }],
     ["recuerdame tomar agua a las 3", "reminder.create", { title: "tomar agua", time: "15:00" }],
+    ["Busca en YouTube baile inolvidable y dame el link", "youtube.search", { query: "baile inolvidable" }],
     ["busca tutoriales de React en YouTube", "youtube.search", { query: "tutoriales de react" }]
   ])("matches %s", async (text, command, params) => {
     const match = await matchCommand(new InMemoryRepository(), { userId: "user-a", text, timezone, now });
@@ -86,6 +87,16 @@ describe("command registry", () => {
     const routed = await routeCommand(repository, { userId: "user-a", text: "dile a Pedro que voy tarde", timezone });
     expect(routed.kind).toBe("resolved");
     if (routed.kind === "resolved") expect(routed.result.status).toBe("pending_confirmation");
+  });
+
+  it("returns a usable youtube link for optimized search", async () => {
+    const repository = new InMemoryRepository();
+    const routed = await routeCommand(repository, { userId: "user-a", text: "Busca en YouTube baile inolvidable y dame el link", timezone });
+    expect(routed.kind).toBe("resolved");
+    if (routed.kind === "resolved") {
+      expect(routed.result.response).toContain("https://www.youtube.com/results?search_query=baile%20inolvidable");
+      expect(routed.result.params.url).toBe("https://www.youtube.com/results?search_query=baile%20inolvidable");
+    }
   });
 
   it("extracts communication phrased as enviar un mensaje", async () => {

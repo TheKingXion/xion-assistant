@@ -103,9 +103,14 @@ export const extractCommandParams = (commandName: string, text: string, timezone
   if (commandName === "youtube.search") {
     const query = text
       .replace(/^(?:abre youtube y |buscame |busca )/, "")
+      .replace(/^en youtube\s+/, "")
+      .replace(/\ben youtube\b/g, "")
+      .replace(/\b(?:y )?dame (?:el )?link\b/g, "")
+      .replace(/\b(?:y )?pasame (?:el )?link\b/g, "")
       .replace(/\s+en youtube$/, "")
       .replace(/^videos? de\s+/, "")
       .replace(/^busca\s+/, "")
+      .replace(/\s+/g, " ")
       .trim();
     if (query) params.query = query;
   }

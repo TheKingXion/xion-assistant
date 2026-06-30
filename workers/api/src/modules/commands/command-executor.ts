@@ -2,6 +2,9 @@ import { prepareCommunication } from "../../services/communication-router";
 import type { Repository } from "../../services/repositories";
 import type { CommandMatch } from "./command-matcher";
 
+const youtubeSearchUrl = (query: unknown) =>
+  `https://www.youtube.com/results?search_query=${encodeURIComponent(String(query))}`;
+
 const responseFor = (name: string, params: Record<string, unknown>) => {
   if (name === "alarm.create") return `Alarma preparada para ${String(params.time)}${params.repeat === "daily" ? " todos los dias" : ""}.`;
   if (name === "alarm.cancel") return "Alarma localizada. Confirma que quieres cancelarla.";
@@ -10,7 +13,7 @@ const responseFor = (name: string, params: Record<string, unknown>) => {
   if (name === "app.open") return `Orden local preparada para abrir ${String(params.app_name)}.`;
   if (name === "spotify.play") return "Reproduccion de Spotify preparada.";
   if (name === "spotify.pause") return "Pausa de Spotify preparada.";
-  if (name === "youtube.search") return `Busqueda de YouTube preparada: ${String(params.query)}.`;
+  if (name === "youtube.search") return `Link de YouTube para "${String(params.query)}": ${youtubeSearchUrl(params.query)}`;
   if (name === "system.check_updates") return "Consulta de actualizaciones preparada.";
   if (name === "calendar.quick_create") return "Evento preparado. Confirma antes de crearlo.";
   return "Comando preparado.";
@@ -31,6 +34,9 @@ export const executeCommandMatch = async (repository: Repository, input: { userI
   }
   if (command.name === "reminder.list") {
     params.reminders = await repository.listReminders(input.userId);
+  }
+  if (command.name === "youtube.search" && params.query) {
+    params.url = youtubeSearchUrl(params.query);
   }
 
   if (command.name === "alarm.create" && params.repeat === "daily") requiresConfirmation = true;
