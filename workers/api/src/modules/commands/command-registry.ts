@@ -34,9 +34,9 @@ export const commandRegistry: CommandDefinition[] = [
   reminderCreateCommand,
   reminderListCommand,
   appOpenCommand,
+  youtubeSearchCommand,
   spotifyPlayCommand,
   spotifyPauseCommand,
-  youtubeSearchCommand,
   systemCheckUpdatesCommand,
   calendarQuickCreateCommand,
   communicationPrepareMessageCommand

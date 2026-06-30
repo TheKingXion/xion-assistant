@@ -16,6 +16,8 @@ describe("command registry", () => {
     ["pon alarma a las seis cuarenta y cinco", "alarm.create", { time: "06:45" }],
     ["recuerdame tomar agua a las 3", "reminder.create", { title: "tomar agua", time: "15:00" }],
     ["Busca en YouTube baile inolvidable y dame el link", "youtube.search", { query: "baile inolvidable" }],
+    ["Busca en YouTube La Playlist de bad Bunny de las canciones del album las que no iban a salir", "youtube.search", { query: "la playlist de bad bunny de las canciones del album las que no iban a salir" }],
+    ["pon mi playlist en Spotify", "spotify.play", { query: "mi playlist" }],
     ["busca tutoriales de React en YouTube", "youtube.search", { query: "tutoriales de react" }]
   ])("matches %s", async (text, command, params) => {
     const match = await matchCommand(new InMemoryRepository(), { userId: "user-a", text, timezone, now });
