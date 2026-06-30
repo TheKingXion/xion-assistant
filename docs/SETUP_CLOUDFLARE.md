@@ -1,101 +1,63 @@
-# Cloudflare Stack desde Dashboard
+# Cloudflare Stack desde GitHub y Dashboard
 
-Guia directa para montar Xion Assistant usando `dash.cloudflare.com`.
+Guia directa para desplegar Xion Assistant usando solo:
 
-- Web publica, panel privado y panel admin: Cloudflare Pages.
-- API principal: Cloudflare Worker.
-- Base de datos: Cloudflare D1.
-- Releases, APKs, instaladores y manifests: Cloudflare R2.
-- Variables y secrets de produccion: Cloudflare Dashboard, no `.env` local.
-- Dominios oficiales:
-  - Web: `assistant.xion.<TU_DOMINIO>`
-  - API: `api.asst.xion.<TU_DOMINIO>`
+- GitHub.
+- `dash.cloudflare.com`.
 
-No usar `admin.<TU_DOMINIO>`, `api.<TU_DOMINIO>` ni `app.<TU_DOMINIO>`, para evitar choque con otros proyectos.
+No usar comandos locales en esta guia. No usar Wrangler manual. No usar variables locales para produccion.
 
-## 0. Regla cloud-first
+## 0. Mapa oficial
 
-Produccion corre en Cloudflare. Local solo sirve para desarrollo.
-
-Si una parte necesita su propio Worker, se crea. No se fuerza todo dentro de un solo Worker si eso complica seguridad, deploy o limites.
-
-Estado actual de deploy:
+Dominios:
 
 ```text
-Repo GitHub: xion-assistant
-Worker API: xion-assistant-api -> creado, mismo repo, root workers/api
+Web / panel / admin: assistant.xion.<TU_DOMINIO>
+API: api.asst.xion.<TU_DOMINIO>
+```
+
+Recursos Cloudflare:
+
+```text
+Worker API: xion-assistant-api
+Pages Web/Admin: xion-assistant
 D1: xion-assistant
 R2: xion-assistant-releases
-Pages Web/Admin: xion-assistant -> crear despues, mismo repo, build apps/web
 ```
 
-Regla:
+Reglas:
 
-- Auth, memoria, comandos, OAuth y acciones viven en `xion-assistant-api`.
-- Cada Worker tiene sus propias variables/secrets en Cloudflare.
+- No usar `admin.<TU_DOMINIO>`.
+- No usar `api.<TU_DOMINIO>`.
+- No usar `app.<TU_DOMINIO>`.
+- Secrets nunca van a Pages.
 - Pages solo recibe variables publicas `VITE_*`.
-- Secrets nunca van a Pages ni al frontend.
-- Bindings D1/R2 se configuran en Cloudflare, no como variables de texto.
-- Cloudflare puede conectar el mismo repo varias veces: una vez para Pages y una vez por cada Worker.
-- Lo que cambia entre proyectos es `Root directory`, build/deploy command, bindings, variables y dominio.
+- D1/R2 se conectan como bindings, no como variables de texto.
+- El mismo repo GitHub alimenta Worker API y Pages.
+- Cada proyecto Cloudflare tiene su propio root, variables, bindings y dominio.
 
-Mapa tipo Xion-TV:
+## 1. Confirmar repo en GitHub
+
+En GitHub:
+
+1. Abrir repo `xion-assistant`.
+2. Confirmar que rama principal es `main`.
+3. Confirmar que existe:
 
 ```text
-Worker API: Workers & Pages > xion-assistant-api > Settings > Variables and Secrets
-Bindings API: Workers & Pages > xion-assistant-api > Settings > Bindings
-Pages Web/Admin: Workers & Pages > xion-assistant > Settings > Environment variables
+workers/api/wrangler.toml
+workers/api/migrations/0001_initial.sql
+workers/api/migrations/0002_command_registry.sql
+apps/web
 ```
 
-No configures `xion-assistant-voice` ni `xion-assistant-releases-api` ahora. Esos Workers no existen todavia.
-
-## 0.1 Regla anti-borrado de variables del Worker
-
-`workers/api/wrangler.toml` debe tener:
+4. Confirmar que `workers/api/wrangler.toml` contiene:
 
 ```toml
 keep_vars = true
 ```
 
-Motivo: cuando Cloudflare build ejecuta `wrangler deploy`, Wrangler sincroniza config del repo con el Worker. Sin `keep_vars = true`, variables normales agregadas en dashboard pueden desaparecer en el siguiente deploy si no estan en `wrangler.toml`.
-
-En este proyecto no ponemos secrets ni variables productivas en `wrangler.toml`, porque:
-
-- `PUBLIC_WEB_URL`, `PUBLIC_API_URL` y variables AI se configuran en dashboard.
-- `JWT_SECRET`, `TOKEN_ENCRYPTION_KEY` y OAuth secrets se configuran como secrets.
-- `wrangler.toml` solo mantiene config segura de deploy y bindings no secretos.
-
-Si ya te paso que despues de buildear quedaron solo `JWT_SECRET` y `TOKEN_ENCRYPTION_KEY`, hacer esto:
-
-1. Confirmar que `keep_vars = true` ya esta en `workers/api/wrangler.toml`.
-2. Hacer commit y push.
-3. Esperar deploy nuevo de `xion-assistant-api`.
-4. Volver a agregar una sola vez las variables normales en dashboard:
-
-```env
-PUBLIC_WEB_URL=https://assistant.xion.exiliadosrpv2.uk
-PUBLIC_API_URL=https://api.asst.xion.exiliadosrpv2.uk
-AI_PROVIDER=mock
-AI_MODEL=mock-assistant
-AI_TTS_PROVIDER=mock
-AI_TTS_DEFAULT_VOICE=xion_voice_1
-AI_TTS_DEFAULT_LANGUAGE=es-CL
-AI_TTS_DEFAULT_SPEED=1
-```
-
-5. Guardar.
-6. Retry deployment.
-7. En siguientes builds ya no deben borrarse.
-
-## 1. Subir repo
-
-El repo debe estar en GitHub antes de conectar Pages o Worker.
-
-```powershell
-git add .
-git commit -m "docs: add cloudflare dashboard setup"
-git push
-```
+Esto evita que deploys del Worker borren variables normales creadas en Cloudflare Dashboard.
 
 ## 2. Crear D1
 
@@ -112,47 +74,50 @@ xion-assistant
 
 5. Click `Create`.
 6. Copiar `database_id`.
-7. Pegar ese ID en `workers/api/wrangler.toml`.
-8. No dejar `< >` alrededor del UUID real.
+7. En GitHub, editar `workers/api/wrangler.toml`.
+8. Poner ese UUID real en:
 
 ```toml
 [[d1_databases]]
 binding = "DB"
 database_name = "xion-assistant"
-database_id = "dde69fd1-0526-4216-897f-8954ce44b8a9"
+database_id = "UUID_REAL_DE_D1"
 migrations_dir = "migrations"
 ```
 
-Importante: binding debe llamarse exactamente `DB`, porque Worker lee `env.DB`.
+9. Guardar el cambio en GitHub con commit en `main`.
 
-### Crear tablas
+Importante:
 
-Opcion recomendada con Wrangler:
+- Binding debe llamarse exactamente `DB`.
+- No dejar `< >` alrededor del UUID.
+- No poner datos privados en `wrangler.toml`.
 
-```powershell
-pnpm --filter @xion-assistant/api exec wrangler d1 migrations apply xion-assistant --remote
-```
+## 3. Crear tablas D1 desde Dashboard
 
-Opcion dashboard:
+En `dash.cloudflare.com`:
 
-1. Entrar a D1 `xion-assistant`.
-2. Abrir tab `Console`.
-3. Copiar SQL de cada archivo en orden:
+1. Ir a `Workers & Pages`.
+2. Abrir `D1 SQL Database`.
+3. Abrir `xion-assistant`.
+4. Abrir tab `Console`.
+5. En GitHub, abrir `workers/api/migrations/0001_initial.sql`.
+6. Copiar contenido completo.
+7. Pegarlo en consola D1.
+8. Click `Execute`.
+9. En GitHub, abrir `workers/api/migrations/0002_command_registry.sql`.
+10. Copiar contenido completo.
+11. Pegarlo en consola D1.
+12. Click `Execute`.
 
-```text
-workers/api/migrations/0001_initial.sql
-workers/api/migrations/0002_command_registry.sql
-```
+Si Cloudflare muestra error de tabla ya existente, revisar si migration ya fue aplicada antes. No repetir migrations sin leer el error.
 
-4. Pegar cada migration completa.
-5. Click `Execute`.
+## 4. Crear R2
 
-## 3. Crear R2 para releases
+En `dash.cloudflare.com`:
 
-En dashboard:
-
-1. Abrir `R2 Object Storage`.
-2. Si Cloudflare pide activar R2, activar.
+1. Ir a `R2 Object Storage`.
+2. Activar R2 si Cloudflare lo pide.
 3. Click `Create bucket`.
 4. Nombre:
 
@@ -162,24 +127,24 @@ xion-assistant-releases
 
 5. Location: `Automatic` o default.
 6. Click `Create bucket`.
-7. No activar acceso publico.
+7. Mantener bucket privado.
 
-El bucket queda privado. Descargas deben pasar por Worker o por URLs firmadas cuando se implemente release real.
-
-Rutas previstas:
+Rutas previstas dentro del bucket:
 
 ```text
-desktop/windows/xion-assistant-setup-0.10.5.exe
-mobile/android/xion-assistant-0.10.5.apk
+desktop/windows/
+mobile/android/
 latest/windows.json
 latest/android.json
 checksums/
 changelogs/
 ```
 
-## 4. Crear Worker API
+No publicar instaladores/APKs reales sin checksum.
 
-En dashboard:
+## 5. Crear Worker API
+
+En `dash.cloudflare.com`:
 
 1. Ir a `Workers & Pages`.
 2. Click `Create`.
@@ -190,17 +155,17 @@ En dashboard:
 xion-assistant-api
 ```
 
-5. Deploy inicial.
+5. Crear Worker.
 
-## 5. Conectar Worker a Git
+## 6. Conectar Worker API a GitHub
 
-Dentro del Worker `xion-assistant-api`:
+Dentro de `xion-assistant-api`:
 
 1. Ir a `Settings`.
 2. Abrir `Builds`.
 3. Click `Connect Git`.
 4. Seleccionar repo `xion-assistant`.
-5. Configurar este mismo repo para API:
+5. Configurar:
 
 ```text
 Root directory: workers/api
@@ -208,17 +173,18 @@ Build command: corepack enable && corepack pnpm install --frozen-lockfile
 Deploy command: corepack pnpm run deploy
 ```
 
-Si pide output directory, dejar vacio.
+6. Guardar.
+7. Ejecutar deployment desde Cloudflare.
 
-Nota: es el mismo repo que usara Pages. En Cloudflare no hace falta repos separados. Solo cambias `Root directory`, comandos, bindings y dominio.
+Si Cloudflare pide output directory para Worker, dejar vacio.
 
-## 6. Bindings del Worker
+## 7. Conectar bindings del Worker
 
-Dentro del Worker `xion-assistant-api`:
+Dentro de `xion-assistant-api`:
 
 1. Ir a `Settings`.
 2. Abrir `Bindings`.
-3. Add binding D1:
+3. Agregar D1 binding:
 
 ```text
 Type: D1 database
@@ -226,7 +192,7 @@ Variable name: DB
 Database: xion-assistant
 ```
 
-4. Add binding R2:
+4. Agregar R2 binding:
 
 ```text
 Type: R2 bucket
@@ -234,13 +200,11 @@ Variable name: RELEASES
 Bucket: xion-assistant-releases
 ```
 
-Importante:
+5. Guardar.
+6. Ir a `Deployments`.
+7. Click `Retry deployment`.
 
-- `DB` debe llamarse exactamente `DB`.
-- `RELEASES` debe llamarse exactamente `RELEASES`.
-- `database_id` real debe estar en `workers/api/wrangler.toml`.
-
-## 7. Variables, secrets y bindings del Worker API
+## 8. Variables y secrets del Worker API
 
 Ruta:
 
@@ -248,11 +212,7 @@ Ruta:
 Workers & Pages > xion-assistant-api > Settings > Variables and Secrets
 ```
 
-Este proyecto ya existe: `xion-assistant-api`.
-
-Agregar solo aqui las variables del API. No poner estas variables en Pages.
-
-Variables:
+Agregar como variables:
 
 ```env
 PUBLIC_WEB_URL=https://assistant.xion.<TU_DOMINIO>
@@ -265,14 +225,14 @@ AI_TTS_DEFAULT_LANGUAGE=es-CL
 AI_TTS_DEFAULT_SPEED=1
 ```
 
-Secrets:
+Agregar como secrets:
 
 ```env
-JWT_SECRET=secret_largo_random
-TOKEN_ENCRYPTION_KEY=secret_largo_random_distinto
+JWT_SECRET=valor_largo_random
+TOKEN_ENCRYPTION_KEY=valor_largo_random_distinto
 ```
 
-Secrets pendientes, solo cuando actives proveedor real:
+Secrets futuros, solo cuando actives proveedor real:
 
 ```env
 AI_API_KEY=solo_si_usas_proveedor_real
@@ -282,35 +242,53 @@ SPOTIFY_CLIENT_ID=cuando_actives_spotify
 SPOTIFY_CLIENT_SECRET=cuando_actives_spotify
 ```
 
-Bindings del mismo Worker:
+Regla:
+
+- `JWT_SECRET` y `TOKEN_ENCRYPTION_KEY` deben ser largos y distintos.
+- No poner secrets en Pages.
+- No poner secrets en GitHub como texto visible.
+- Despues de guardar variables/secrets, ir a `Deployments` y hacer `Retry deployment`.
+
+## 9. Si variables desaparecen despues de build
+
+Sintoma:
 
 ```text
-DB -> D1 xion-assistant
-RELEASES -> R2 xion-assistant-releases
+Variables and Secrets solo muestra:
+JWT_SECRET
+TOKEN_ENCRYPTION_KEY
 ```
 
-Generar secretos seguros en PowerShell:
+Fix:
 
-```powershell
-[Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(48))
+1. En GitHub, abrir `workers/api/wrangler.toml`.
+2. Confirmar:
+
+```toml
+keep_vars = true
 ```
 
-Despues de cambiar variables/secrets/bindings:
+3. Confirmar que ese cambio existe en `main`.
+4. Esperar nuevo deployment del Worker.
+5. Volver a agregar variables normales una sola vez:
 
-1. Guardar.
-2. Ir a `Deployments`.
-3. Click `Retry deployment` o hacer nuevo push.
-4. Probar health.
-
-```powershell
-curl https://api.asst.xion.<TU_DOMINIO>/api/health
+```env
+PUBLIC_WEB_URL=https://assistant.xion.<TU_DOMINIO>
+PUBLIC_API_URL=https://api.asst.xion.<TU_DOMINIO>
+AI_PROVIDER=mock
+AI_MODEL=mock-assistant
+AI_TTS_PROVIDER=mock
+AI_TTS_DEFAULT_VOICE=xion_voice_1
+AI_TTS_DEFAULT_LANGUAGE=es-CL
+AI_TTS_DEFAULT_SPEED=1
 ```
 
-Importante: `workers/api/wrangler.toml` no incluye `PUBLIC_WEB_URL`, `PUBLIC_API_URL` ni `[[routes]]` con placeholders. Produccion toma variables y dominio desde Cloudflare Dashboard.
+6. Guardar.
+7. Retry deployment.
 
-Tambien debe incluir `keep_vars = true`. Si falta, el deploy puede borrar variables normales del dashboard y dejar solo secrets.
+Siguientes builds no deben borrar variables.
 
-## 8. Dominio del Worker
+## 10. Dominio del Worker API
 
 Dentro de `xion-assistant-api`:
 
@@ -323,19 +301,28 @@ Dentro de `xion-assistant-api`:
 api.asst.xion.<TU_DOMINIO>
 ```
 
-5. Confirmar DNS.
+5. Confirmar.
+6. Esperar DNS/SSL activo.
 
-No agregues `[[routes]]` con `<TU_DOMINIO>` en `workers/api/wrangler.toml`. Si queda placeholder, deploy falla con:
+Para dominio real actual:
 
 ```text
-Could not find zone for `<TU_DOMINIO>`
+api.asst.xion.exiliadosrpv2.uk
 ```
 
-## 9. Crear Pages Web
+Validacion desde navegador:
 
-Tu estado actual: `xion-assistant-api` ya existe. Pages `xion-assistant` todavia no existe si no lo creaste manualmente. Crealo aqui.
+```text
+https://api.asst.xion.<TU_DOMINIO>/api/health
+```
 
-En dashboard:
+Debe responder JSON con `ok: true`.
+
+## 11. Crear Pages Web/Admin
+
+Crear solo si aun no existe `xion-assistant`.
+
+En `dash.cloudflare.com`:
 
 1. Ir a `Workers & Pages`.
 2. Click `Create`.
@@ -359,9 +346,7 @@ Build output directory: apps/web/dist
 
 8. Deploy.
 
-Nota: este Pages project usa el mismo repo que Worker API. Aqui `Root directory` queda `/` porque el monorepo instala dependencias desde raiz y luego compila `@xion-assistant/web`.
-
-## 10. Variables de Pages
+## 12. Variables de Pages
 
 Dentro de Pages `xion-assistant`:
 
@@ -373,15 +358,22 @@ Dentro de Pages `xion-assistant`:
 VITE_PUBLIC_API_URL=https://api.asst.xion.<TU_DOMINIO>
 ```
 
-4. Si usas preview deployments, repetir en `Preview`.
+4. En `Preview`, agregar lo mismo solo si usas preview deployments.
 5. Guardar.
-6. Hacer `Retry deployment`.
+6. Ir a `Deployments`.
+7. Click `Retry deployment`.
 
-Las variables `VITE_*` se leen durante build. Si cambias `VITE_PUBLIC_API_URL` y no redeployas Pages, web puede seguir usando URL antigua.
+No poner en Pages:
 
-No poner `JWT_SECRET`, `TOKEN_ENCRYPTION_KEY`, `AI_API_KEY`, `GOOGLE_CLIENT_SECRET` ni `SPOTIFY_CLIENT_SECRET` en Pages.
+```text
+JWT_SECRET
+TOKEN_ENCRYPTION_KEY
+AI_API_KEY
+GOOGLE_CLIENT_SECRET
+SPOTIFY_CLIENT_SECRET
+```
 
-## 11. Dominio de Pages
+## 13. Dominio de Pages
 
 Dentro de Pages `xion-assistant`:
 
@@ -393,18 +385,32 @@ Dentro de Pages `xion-assistant`:
 assistant.xion.<TU_DOMINIO>
 ```
 
-4. Confirmar DNS.
-5. Esperar SSL activo.
+4. Confirmar.
+5. Esperar DNS/SSL activo.
 
-## 12. GitHub Secrets
+Para dominio real actual:
+
+```text
+assistant.xion.exiliadosrpv2.uk
+```
+
+Validacion desde navegador:
+
+```text
+https://assistant.xion.<TU_DOMINIO>
+```
+
+Debe abrir web/login/panel.
+
+## 14. GitHub Actions secrets
 
 En GitHub:
 
-1. Entrar al repo `xion-assistant`.
+1. Abrir repo `xion-assistant`.
 2. Ir a `Settings`.
 3. Abrir `Secrets and variables`.
 4. Abrir `Actions`.
-5. Crear solo estos secrets necesarios ahora:
+5. Crear secrets necesarios ahora:
 
 ```text
 CLOUDFLARE_API_TOKEN
@@ -417,7 +423,7 @@ PUBLIC_WEB_URL
 PUBLIC_API_URL
 ```
 
-Valores:
+Valores no secretos:
 
 ```env
 R2_BUCKET_NAME=xion-assistant-releases
@@ -425,7 +431,7 @@ PUBLIC_WEB_URL=https://assistant.xion.<TU_DOMINIO>
 PUBLIC_API_URL=https://api.asst.xion.<TU_DOMINIO>
 ```
 
-Pendientes para fases futuras. No crearlos ahora si no estas usando esos conectores/builds:
+Pendientes para fases futuras:
 
 ```text
 R2_ACCESS_KEY_ID
@@ -445,7 +451,7 @@ TAURI_PRIVATE_KEY
 TAURI_KEY_PASSWORD
 ```
 
-Token Cloudflare minimo recomendado:
+Permisos recomendados para token Cloudflare:
 
 ```text
 Account - Cloudflare Workers Scripts - Edit
@@ -456,173 +462,90 @@ Account - Account Settings - Read
 Zone - DNS - Edit
 ```
 
-## 13. Deploy manual por comandos
+## 15. Google OAuth desde Dashboard
 
-Usar si prefieres Wrangler local:
+Usar guia completa:
 
-```powershell
-pnpm exec wrangler login
-pnpm --filter @xion-assistant/api exec wrangler d1 create xion-assistant
-pnpm exec wrangler r2 bucket create xion-assistant-releases
-pnpm --filter @xion-assistant/api exec wrangler d1 migrations apply xion-assistant --remote
-pnpm --filter @xion-assistant/api deploy
-pnpm --filter @xion-assistant/web build
-pnpm exec wrangler pages project create xion-assistant
-pnpm exec wrangler pages deploy apps/web/dist --project-name xion-assistant
+```text
+docs/GOOGLE_OAUTH_DASHBOARD.md
 ```
 
-Secrets por comando:
+Valores principales:
 
-```powershell
-pnpm --filter @xion-assistant/api exec wrangler secret put JWT_SECRET
-pnpm --filter @xion-assistant/api exec wrangler secret put TOKEN_ENCRYPTION_KEY
-pnpm --filter @xion-assistant/api exec wrangler secret put AI_API_KEY
+```text
+Authorized JavaScript origin:
+https://assistant.xion.exiliadosrpv2.uk
+
+Authorized redirect URI:
+https://api.asst.xion.exiliadosrpv2.uk/api/oauth/google/callback
 ```
 
-## 14. Probar API
+Despues de crear OAuth Client:
 
-Abrir:
+1. Copiar `GOOGLE_CLIENT_ID`.
+2. Copiar `GOOGLE_CLIENT_SECRET`.
+3. Ir a Cloudflare Worker `xion-assistant-api`.
+4. Abrir `Settings > Variables and Secrets`.
+5. Agregar ambos como secrets.
+6. Retry deployment.
+
+## 16. Validacion final desde navegador
+
+API:
 
 ```text
 https://api.asst.xion.<TU_DOMINIO>/api/health
 ```
 
-Debe responder:
-
-```json
-{"ok":true,"service":"xion-assistant-api"}
-```
-
-Si respuesta exacta cambia, basta con que `ok` sea `true`.
-
-## 15. Probar Web
-
-Abrir:
+Web:
 
 ```text
 https://assistant.xion.<TU_DOMINIO>
 ```
 
-Debe mostrar login/registro y panel de asistente.
-
-## 16. Probar registro y login
-
-Desde web:
-
-1. Crear usuario.
-2. Iniciar sesion.
-3. Enviar mensaje:
+OAuth start:
 
 ```text
-Pon una alarma a las 6:45
+https://api.asst.xion.<TU_DOMINIO>/api/oauth/google/start?user_id=test-user
 ```
 
-Debe responder sin usar IA si Command Registry detecta comando.
+Si API no abre, revisar:
 
-Por curl:
+- Worker deployment activo.
+- Custom domain activo.
+- DNS/SSL listo.
+- `PUBLIC_API_URL` correcto.
+- Binding `DB` conectado.
+- Binding `RELEASES` conectado.
 
-```powershell
-curl -X POST https://api.asst.xion.<TU_DOMINIO>/api/auth/register `
-  -H "content-type: application/json" `
-  -d "{\"email\":\"luis@example.com\",\"password\":\"change-me-1234\",\"displayName\":\"Luis\"}"
-```
+Si web abre pero no conecta a API, revisar:
 
-Luego usar token devuelto como Bearer en rutas privadas.
-
-## 17. Probar R2 releases
-
-No publicar releases sin checksum real.
-
-Generar checksums:
-
-```powershell
-pnpm release:checksums dist/releases dist/releases/checksums.json
-```
-
-Verificar manifest:
-
-```powershell
-pnpm release:verify dist/releases/latest.json
-```
-
-Cuando exista artefacto real, subir manual:
-
-```powershell
-$env:CLOUDFLARE_API_TOKEN="TU_TOKEN"
-pnpm exec wrangler r2 object put xion-assistant-releases/latest/android.json --file dist/releases/latest.json --content-type "application/json; charset=utf-8"
-```
-
-## 18. Cada actualizacion
-
-Flujo esperado:
-
-1. Subir version en `package.json` y packages tocados.
-2. Build artefactos.
-3. Generar sha256.
-4. Generar `latest/windows.json` o `latest/android.json`.
-5. Verificar manifest.
-6. Subir instalador/APK a R2.
-7. Subir checksum y changelog.
-8. Hacer commit, tag y push.
-
-Regla:
-
-```text
-version nueva > version instalada = app muestra update
-checksum coincide = descarga valida
-checksum falla = update bloqueado
-```
-
-## 19. Diagnostico rapido
-
-API:
-
-```powershell
-curl https://api.asst.xion.<TU_DOMINIO>/api/health
-```
-
-Pages:
-
-```powershell
-curl https://assistant.xion.<TU_DOMINIO>
-```
-
-Logs Worker:
-
-```powershell
-pnpm --filter @xion-assistant/api exec wrangler tail
-```
-
-Migrations remotas:
-
-```powershell
-pnpm --filter @xion-assistant/api exec wrangler d1 migrations list xion-assistant --remote
-```
+- Pages variable `VITE_PUBLIC_API_URL`.
+- Pages redeploy despues de cambiar variable.
+- API custom domain activo.
 
 ## Checklist final
 
+- Repo `xion-assistant` existe en GitHub.
+- Rama `main` tiene `workers/api/wrangler.toml`.
+- `keep_vars = true` existe en `wrangler.toml`.
 - D1 `xion-assistant` creado.
-- `database_id` real puesto en `workers/api/wrangler.toml` sin `< >`.
-- Migraciones `0001_initial.sql` y `0002_command_registry.sql` aplicadas.
-- R2 `xion-assistant-releases` creado.
+- `database_id` real puesto en GitHub.
+- Migrations `0001_initial.sql` y `0002_command_registry.sql` aplicadas desde D1 Console.
+- R2 `xion-assistant-releases` creado y privado.
 - Worker `xion-assistant-api` creado.
-- Worker conectado a repo.
+- Worker conectado a GitHub con root `workers/api`.
 - Binding `DB` conectado a D1.
 - Binding `RELEASES` conectado a R2.
-- Worker variables `PUBLIC_WEB_URL`, `PUBLIC_API_URL`, `AI_PROVIDER`, `AI_MODEL` configuradas.
+- Worker variables normales configuradas.
 - Worker secrets `JWT_SECRET` y `TOKEN_ENCRYPTION_KEY` configurados.
-- Worker domain `api.asst.xion.<TU_DOMINIO>` activo.
+- Worker custom domain `api.asst.xion.<TU_DOMINIO>` activo.
 - Pages `xion-assistant` creado.
-- Pages conectado a repo.
-- Pages variable `VITE_PUBLIC_API_URL` apunta a API real.
-- Pages domain `assistant.xion.<TU_DOMINIO>` activo.
-- GitHub secrets creados.
-- `https://api.asst.xion.<TU_DOMINIO>/api/health` responde OK.
-- `https://assistant.xion.<TU_DOMINIO>` abre web.
-- Registro/login funcionan.
-- Command Registry responde comandos basicos.
-- R2 queda privado.
-- Releases futuras pasan por checksum antes de publicarse.
-- Variables/secrets productivas viven en Cloudflare Dashboard.
-- Pages solo tiene `VITE_*`; ningun secret vive en frontend.
-- Workers extra de Voice/Releases quedan pendientes; no configurarlos ahora.
+- Pages conectado a GitHub.
+- Pages variable `VITE_PUBLIC_API_URL` configurada.
+- Pages custom domain `assistant.xion.<TU_DOMINIO>` activo.
+- GitHub Actions secrets creados.
+- API health responde `ok: true`.
+- Web abre correctamente.
+- Secrets no existen en frontend.
+- Workers extra de Voice/Releases no creados todavia.

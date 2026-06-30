@@ -132,6 +132,12 @@
 - Documented recovery steps when Cloudflare build leaves only `JWT_SECRET` and `TOKEN_ENCRYPTION_KEY`.
 - Clarified Worker vars stay in dashboard while `wrangler.toml` keeps safe deploy config and bindings.
 
+## v0.10.6
+
+- Rewrote Cloudflare setup as GitHub and `dash.cloudflare.com` only.
+- Removed local Wrangler/manual command flow from the official Cloudflare guide.
+- Kept D1 migrations, Worker deploy, Pages deploy, bindings, domains and secrets as dashboard steps.
+
 ## v0.2.0
 
 - Google OAuth.
