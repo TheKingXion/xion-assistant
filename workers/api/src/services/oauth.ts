@@ -16,6 +16,16 @@ type TokenResponse = {
   id_token?: string;
 };
 
+export type GoogleAuthExchange = {
+  providerUserId: string;
+  email: string;
+  displayName: string;
+  accessToken: string;
+  refreshToken?: string;
+  scopes: string[];
+  expiresAt?: string;
+};
+
 export const supportedOAuthProviders = ["google", "spotify"] as const;
 
 export const isOAuthProvider = (value: string): value is OAuthProvider =>
@@ -67,6 +77,23 @@ export const parseOAuthState = (state: string): { userId: string; provider: OAut
   return { userId: parsed.userId, provider: parsed.provider };
 };
 
+export const createGoogleAuthState = () =>
+  btoa(
+    JSON.stringify({
+      flow: "google_auth",
+      nonce: crypto.randomUUID(),
+      createdAt: new Date().toISOString()
+    })
+  );
+
+export const parseGoogleAuthState = (state: string) => {
+  const parsed = JSON.parse(atob(state)) as { flow?: string; nonce?: string };
+  if (parsed.flow !== "google_auth" || !parsed.nonce) {
+    throw new Error("invalid_oauth_state");
+  }
+  return parsed;
+};
+
 export const buildAuthorizationUrl = (input: {
   env: Env;
   provider: OAuthProvider;
@@ -87,6 +114,28 @@ export const buildAuthorizationUrl = (input: {
     url.searchParams.set("access_type", "offline");
     url.searchParams.set("prompt", "consent");
   }
+  return {
+    authorizationUrl: url.toString(),
+    redirectUri,
+    state,
+    scopes,
+    configured: Boolean(config.clientId && config.clientSecret)
+  };
+};
+
+export const buildGoogleAuthAuthorizationUrl = (env: Env) => {
+  const config = getOAuthProviderConfig(env, "google");
+  const redirectUri = `${env.PUBLIC_API_URL}/api/auth/google/callback`;
+  const scopes = ["openid", "email", "profile"];
+  const state = createGoogleAuthState();
+  const url = new URL(config.authorizationUrl);
+  url.searchParams.set("client_id", config.clientId ?? "<missing-client-id>");
+  url.searchParams.set("redirect_uri", redirectUri);
+  url.searchParams.set("response_type", "code");
+  url.searchParams.set("scope", scopes.join(" "));
+  url.searchParams.set("state", state);
+  url.searchParams.set("access_type", "offline");
+  url.searchParams.set("prompt", "consent");
   return {
     authorizationUrl: url.toString(),
     redirectUri,
@@ -165,6 +214,45 @@ export const exchangeOAuthCode = async (input: {
   };
 };
 
+export const exchangeGoogleAuthCode = async (input: {
+  env: Env;
+  code: string;
+  redirectUri: string;
+}): Promise<GoogleAuthExchange> => {
+  const config = getOAuthProviderConfig(input.env, "google");
+  const credentials = requireProviderConfig(config);
+  const body = new URLSearchParams({
+    grant_type: "authorization_code",
+    code: input.code,
+    redirect_uri: input.redirectUri,
+    client_id: credentials.clientId,
+    client_secret: credentials.clientSecret
+  });
+
+  const response = await fetch(config.tokenUrl, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body
+  });
+  if (!response.ok) throw new Error("oauth_token_exchange_failed");
+
+  const token = (await response.json()) as TokenResponse;
+  if (!token.access_token) throw new Error("oauth_access_token_missing");
+
+  const profile = await resolveGoogleAuthProfile(token);
+  const scopes = token.scope?.split(/\s+/).filter(Boolean) ?? ["openid", "email", "profile"];
+  const result: GoogleAuthExchange = {
+    providerUserId: profile.sub,
+    email: profile.email,
+    displayName: profile.name ?? profile.email.split("@")[0] ?? "Google User",
+    accessToken: token.access_token,
+    scopes
+  };
+  if (token.refresh_token !== undefined) result.refreshToken = token.refresh_token;
+  if (token.expires_in !== undefined) result.expiresAt = new Date(Date.now() + token.expires_in * 1000).toISOString();
+  return result;
+};
+
 const resolveProviderUserId = async (provider: OAuthProvider, token: TokenResponse) => {
   if (provider === "google") {
     const jwtPayload = token.id_token ? parseJwtPayload(token.id_token) : {};
@@ -185,4 +273,25 @@ const resolveProviderUserId = async (provider: OAuthProvider, token: TokenRespon
   const profile = (await response.json()) as { id?: string };
   if (!profile.id) throw new Error("oauth_provider_user_id_missing");
   return profile.id;
+};
+
+const resolveGoogleAuthProfile = async (token: TokenResponse) => {
+  const jwtPayload = token.id_token ? parseJwtPayload(token.id_token) : {};
+  const jwtProfile = {
+    sub: typeof jwtPayload.sub === "string" ? jwtPayload.sub : undefined,
+    email: typeof jwtPayload.email === "string" ? jwtPayload.email : undefined,
+    name: typeof jwtPayload.name === "string" ? jwtPayload.name : undefined
+  };
+  if (jwtProfile.sub && jwtProfile.email) {
+    return { sub: jwtProfile.sub, email: jwtProfile.email, name: jwtProfile.name };
+  }
+
+  const response = await fetch("https://openidconnect.googleapis.com/v1/userinfo", {
+    headers: { authorization: `Bearer ${token.access_token}` }
+  });
+  if (!response.ok) throw new Error("oauth_profile_fetch_failed");
+  const profile = (await response.json()) as { sub?: string; email?: string; name?: string };
+  if (!profile.sub) throw new Error("oauth_provider_user_id_missing");
+  if (!profile.email) throw new Error("oauth_email_missing");
+  return { sub: profile.sub, email: profile.email, name: profile.name };
 };

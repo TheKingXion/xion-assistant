@@ -12,7 +12,7 @@ Browser API uses Bearer headers, not cookies. CORS allows origins without creden
 
 ## OAuth
 
-Google/Spotify OAuth start URLs, callback token exchange and encrypted token storage exist. Missing provider secrets fail closed.
+Google login/register uses `/api/auth/google/start` and `/api/auth/google/callback`. The callback creates or finds the user by Google email, creates a Xion session, stores Google tokens encrypted server-side, then redirects to the web with a short `#auth=...` hash payload. Google/Spotify connector OAuth start URLs, callback token exchange and encrypted token storage also exist. Missing provider secrets fail closed.
 
 ## Token Encryption
 

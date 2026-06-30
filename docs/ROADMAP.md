@@ -151,6 +151,13 @@
 - Rebuilt web app as full dashboard: auth, assistant chat, memory, contacts, voice, commands, connectors, updates and settings.
 - Made duplicate GitHub deploy workflows manual-only because Cloudflare Dashboard handles deploys on push.
 
+## v0.11.1
+
+- Added Google login/register button in web auth.
+- Added `/api/auth/google/start` and `/api/auth/google/callback`.
+- Google callback creates or finds the user, creates a Xion session, and stores Google tokens encrypted server-side.
+- Documented separate Google callbacks for login/register and app connectors.
+
 ## v0.2.0
 
 - Google OAuth.

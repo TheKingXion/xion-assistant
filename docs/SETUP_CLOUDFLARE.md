@@ -542,7 +542,10 @@ Valores principales:
 Authorized JavaScript origin:
 https://assistant.xion.exiliadosrpv2.uk
 
-Authorized redirect URI:
+Authorized redirect URI para login/registro:
+https://api.asst.xion.exiliadosrpv2.uk/api/auth/google/callback
+
+Authorized redirect URI para conectar Calendar/YouTube:
 https://api.asst.xion.exiliadosrpv2.uk/api/oauth/google/callback
 ```
 
@@ -570,6 +573,12 @@ https://assistant.xion.<TU_DOMINIO>
 ```
 
 OAuth start:
+
+```text
+https://api.asst.xion.<TU_DOMINIO>/api/auth/google/start
+```
+
+OAuth connector start:
 
 ```text
 https://api.asst.xion.<TU_DOMINIO>/api/oauth/google/start?user_id=test-user

@@ -8,7 +8,7 @@ import { createAiGateway, type AiGatewayConfig } from "./services/ai-gateway";
 import { executeConfirmedAction } from "./services/action-executor";
 import { handleAssistantMessage } from "./services/assistant-engine";
 import { listGoogleCalendarEvents } from "./services/google-calendar";
-import { buildAuthorizationUrl, exchangeOAuthCode, isOAuthProvider, parseOAuthState } from "./services/oauth";
+import { buildAuthorizationUrl, buildGoogleAuthAuthorizationUrl, exchangeGoogleAuthCode, exchangeOAuthCode, isOAuthProvider, parseGoogleAuthState, parseOAuthState } from "./services/oauth";
 import { createRepository } from "./services/repositories";
 import { createSessionToken, encryptToken, hashPassword, verifyPassword } from "./services/security";
 import { getSpotifyPlayback } from "./services/spotify";
@@ -53,7 +53,7 @@ app.get("/api/health", (c) =>
   c.json({
     ok: true,
     name: "xion-assistant-api",
-    version: "0.11.0",
+    version: "0.11.1",
     routes: {
       web: c.env.PUBLIC_WEB_URL,
       api: c.env.PUBLIC_API_URL
@@ -66,6 +66,18 @@ const authSchema = z.object({
   password: z.string().min(8),
   displayName: z.string().min(1).optional()
 });
+
+const encodeAuthFragment = (value: unknown) =>
+  btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(value))))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+
+const redirectToWebAuth = (webUrl: string, key: "auth" | "auth_error", value: unknown) => {
+  const url = new URL(webUrl || "http://localhost:5173");
+  url.hash = `${key}=${encodeAuthFragment(value)}`;
+  return url.toString();
+};
 
 app.post("/api/auth/register", zValidator("json", authSchema), async (c) => {
   const body = c.req.valid("json");
@@ -106,6 +118,78 @@ app.post("/api/auth/login", zValidator("json", authSchema.omit({ displayName: tr
     token,
     session: { id: session.id, expiresAt: session.expiresAt }
   });
+});
+
+app.get("/api/auth/google/start", (c) =>
+  c.json({
+    ok: true,
+    provider: "google",
+    ...buildGoogleAuthAuthorizationUrl(c.env)
+  })
+);
+
+app.get("/api/auth/google/callback", async (c) => {
+  const code = c.req.query("code");
+  const state = c.req.query("state");
+  if (!code) return c.redirect(redirectToWebAuth(c.env.PUBLIC_WEB_URL, "auth_error", { error: "oauth_code_required" }), 302);
+  if (!state) return c.redirect(redirectToWebAuth(c.env.PUBLIC_WEB_URL, "auth_error", { error: "oauth_state_required" }), 302);
+  try {
+    parseGoogleAuthState(state);
+  } catch {
+    return c.redirect(redirectToWebAuth(c.env.PUBLIC_WEB_URL, "auth_error", { error: "invalid_oauth_state" }), 302);
+  }
+  if (!c.env.TOKEN_ENCRYPTION_KEY) {
+    return c.redirect(redirectToWebAuth(c.env.PUBLIC_WEB_URL, "auth_error", { error: "token_encryption_key_required" }), 302);
+  }
+
+  try {
+    const exchanged = await exchangeGoogleAuthCode({
+      env: c.env,
+      code,
+      redirectUri: `${c.env.PUBLIC_API_URL}/api/auth/google/callback`
+    });
+    const repository = createRepository(c.env.DB);
+    const user = (await repository.findUserByEmail(exchanged.email)) ?? (await repository.createUser({
+      email: exchanged.email,
+      displayName: exchanged.displayName
+    }));
+    const accountInput: {
+      userId: string;
+      provider: "google";
+      providerUserId: string;
+      encryptedAccessToken: string;
+      encryptedRefreshToken?: string;
+      scopes: string[];
+      expiresAt?: string;
+    } = {
+      userId: user.id,
+      provider: "google",
+      providerUserId: exchanged.providerUserId,
+      encryptedAccessToken: await encryptToken(exchanged.accessToken, c.env.TOKEN_ENCRYPTION_KEY),
+      scopes: exchanged.scopes
+    };
+    if (exchanged.refreshToken !== undefined) {
+      accountInput.encryptedRefreshToken = await encryptToken(exchanged.refreshToken, c.env.TOKEN_ENCRYPTION_KEY);
+    }
+    if (exchanged.expiresAt !== undefined) accountInput.expiresAt = exchanged.expiresAt;
+    await repository.upsertOAuthAccount(accountInput);
+
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30).toISOString();
+    const token = await createSessionToken(user.id, c.env.JWT_SECRET, new Date(expiresAt).getTime());
+    const tokenHash = await hashPassword(token);
+    const session = await repository.createSession({ userId: user.id, tokenHash, expiresAt });
+    return c.redirect(
+      redirectToWebAuth(c.env.PUBLIC_WEB_URL, "auth", {
+        token,
+        user: { id: user.id, email: user.email, displayName: user.displayName },
+        session: { id: session.id, expiresAt: session.expiresAt }
+      }),
+      302
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "oauth_exchange_failed";
+    return c.redirect(redirectToWebAuth(c.env.PUBLIC_WEB_URL, "auth_error", { error: message }), 302);
+  }
 });
 
 app.get("/api/memory", async (c) => {

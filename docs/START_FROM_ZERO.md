@@ -1,6 +1,6 @@
 # START FROM ZERO
 
-Estado: `v0.11.0` foundation. Incluye Command Registry autenticado, shortcuts privados, metricas, web completa, Gemini texto/TTS, migracion `0002`, guia Cloudflare cloud-first solo con GitHub/Dashboard, pasos para sacar `CLOUDFLARE_API_TOKEN`, pasos Google OAuth para dominio real y proteccion `keep_vars = true` para que deploys Worker no borren variables del dashboard. Deploy real requiere recursos y secrets Cloudflare.
+Estado: `v0.11.1` foundation. Incluye Command Registry autenticado, shortcuts privados, metricas, web completa, login/registro con Google, Gemini texto/TTS, migracion `0002`, guia Cloudflare cloud-first solo con GitHub/Dashboard, pasos para sacar `CLOUDFLARE_API_TOKEN`, pasos Google OAuth para dominio real y proteccion `keep_vars = true` para que deploys Worker no borren variables del dashboard. Deploy real requiere recursos y secrets Cloudflare.
 
 ## Cloudflare: Worker, Pages, D1 y R2
 

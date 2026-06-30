@@ -40,13 +40,22 @@ const fakeJwt = (payload: Record<string, unknown>) => {
   return `${encode({ alg: "none" })}.${encode(payload)}.sig`;
 };
 
+const decodeAuthFragment = (location: string, key: "auth" | "auth_error") => {
+  const hash = new URL(location).hash.slice(1);
+  const prefix = `${key}=`;
+  expect(hash.startsWith(prefix)).toBe(true);
+  const value = hash.slice(prefix.length);
+  const padded = value.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "=");
+  return JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(padded), (char) => char.charCodeAt(0)))) as any;
+};
+
 describe("xion assistant api", () => {
   it("returns health with project routes", async () => {
     const res = await app.request("/api/health", {}, env);
     const json = (await res.json()) as any;
 
     expect(json.ok).toBe(true);
-    expect(json.version).toBe("0.11.0");
+    expect(json.version).toBe("0.11.1");
   });
 
   it("allows bearer API preflight without credentialed CORS", async () => {
@@ -304,6 +313,50 @@ describe("xion assistant api", () => {
     expect(json.authorizationUrl).toContain("state=");
     expect(json.authorizationUrl).not.toContain("secret");
     expect(json.configured).toBe(false);
+  });
+
+  it("builds google login authorization url with minimal auth scopes", async () => {
+    const res = await app.request("/api/auth/google/start", {}, configuredOAuthEnv);
+    const json = (await res.json()) as any;
+    const authorizationUrl = new URL(json.authorizationUrl);
+
+    expect(json.ok).toBe(true);
+    expect(json.configured).toBe(true);
+    expect(json.redirectUri).toBe("http://localhost:8787/api/auth/google/callback");
+    expect(authorizationUrl.searchParams.get("scope")).toBe("openid email profile");
+    expect(json.authorizationUrl).not.toContain("google-secret");
+  });
+
+  it("logs in or registers with google callback and redirects auth payload to web hash", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({
+            access_token: "google-login-access",
+            refresh_token: "google-login-refresh",
+            expires_in: 3600,
+            scope: "openid email profile",
+            id_token: fakeJwt({ sub: "google-login-user", email: "google-login@example.com", name: "Google Login" })
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        )
+      )
+    );
+    const start = await app.request("/api/auth/google/start", {}, configuredOAuthEnv);
+    const startJson = (await start.json()) as any;
+    const callback = await app.request(`/api/auth/google/callback?code=auth-code&state=${encodeURIComponent(startJson.state)}`, {}, configuredOAuthEnv);
+    const location = callback.headers.get("location") ?? "";
+    const auth = decodeAuthFragment(location, "auth");
+
+    expect(callback.status).toBe(302);
+    expect(location).toContain("http://localhost:5173/#auth=");
+    expect(auth.token).toBeTruthy();
+    expect(auth.user.email).toBe("google-login@example.com");
+    expect(auth.user.displayName).toBe("Google Login");
+    expect(auth.session.id).toMatch(/^ses_/);
+    expect(location).not.toContain("google-login-access");
+    expect(location).not.toContain("google-login-refresh");
   });
 
   it("stores oauth accounts redacted and isolated by user", async () => {

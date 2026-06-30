@@ -24,8 +24,8 @@
 | `R2_ACCESS_KEY_ID` | Release | GitHub secret | hidden | R2 S3 access id. |
 | `R2_SECRET_ACCESS_KEY` | Release | GitHub secret | hidden | R2 S3 secret. |
 | `R2_BUCKET_NAME` | Release | GitHub secret | `xion-assistant-releases` | Release bucket. |
-| `GOOGLE_CLIENT_ID` | Later | GitHub/Worker | hidden | Google OAuth id. |
-| `GOOGLE_CLIENT_SECRET` | Later | GitHub/Worker secret | hidden | Google OAuth secret. |
+| `GOOGLE_CLIENT_ID` | Yes for Google login | Worker secret, GitHub if Actions deploy Worker | hidden | Google OAuth client id for login/register and Google connectors. |
+| `GOOGLE_CLIENT_SECRET` | Yes for Google login | Worker secret, GitHub if Actions deploy Worker | hidden | Google OAuth client secret for login/register and Google connectors. |
 | `SPOTIFY_CLIENT_ID` | Later | GitHub/Worker | hidden | Spotify OAuth id. |
 | `SPOTIFY_CLIENT_SECRET` | Later | GitHub/Worker secret | hidden | Spotify OAuth secret. |
 | `ANDROID_KEYSTORE_BASE64` | Later | GitHub secret | hidden | Android signing. |

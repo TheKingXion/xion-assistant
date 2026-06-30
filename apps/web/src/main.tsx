@@ -38,7 +38,7 @@ import {
 import "./styles.css";
 
 const API_URL = import.meta.env.VITE_PUBLIC_API_URL ?? "http://localhost:8787";
-const VERSION = "0.10.8";
+const VERSION = "0.11.1";
 
 type AuthState = { token: string; user: { id: string; email: string; displayName: string } };
 type View = "dashboard" | "assistant" | "memory" | "contacts" | "voice" | "commands" | "connectors" | "updates" | "settings";
@@ -94,6 +94,26 @@ function App() {
 
   useEffect(() => {
     void loadHealth();
+  }, []);
+
+  useEffect(() => {
+    const hash = window.location.hash.replace(/^#/, "");
+    if (!hash.startsWith("auth=") && !hash.startsWith("auth_error=")) return;
+    const [key, value] = hash.split("=");
+    if (!key || !value) return;
+    try {
+      const payload = decodeAuthFragment(value);
+      if (key === "auth") {
+        setSession(payload as AuthState);
+        notify("Sesion Google iniciada");
+      } else {
+        notify(`Google OAuth: ${(payload as { error?: string }).error ?? "error"}`);
+      }
+    } catch {
+      notify("Google OAuth: respuesta invalida");
+    } finally {
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
   }, []);
 
   const loadHealth = async () => {
@@ -184,6 +204,23 @@ function AuthPanel({ onAuthenticated }: { onAuthenticated: (auth: AuthState) => 
     }
   };
 
+  const continueWithGoogle = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const data = await createApi().get<{ authorizationUrl: string; configured: boolean }>("/api/auth/google/start");
+      if (!data.configured) {
+        setError("Google OAuth falta configurar en Worker");
+        setBusy(false);
+        return;
+      }
+      window.location.href = data.authorizationUrl;
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "No se pudo iniciar Google");
+      setBusy(false);
+    }
+  };
+
   return (
     <section className="auth-page">
       <div className="auth-copy">
@@ -201,6 +238,11 @@ function AuthPanel({ onAuthenticated }: { onAuthenticated: (auth: AuthState) => 
           <button type="button" className={mode === "login" ? "active" : ""} onClick={() => setMode("login")}><LogIn size={16} />Entrar</button>
           <button type="button" className={mode === "register" ? "active" : ""} onClick={() => setMode("register")}><UserPlus size={16} />Crear</button>
         </div>
+        <button type="button" className="google-button" disabled={busy} onClick={() => void continueWithGoogle()}>
+          {busy ? <RefreshCcw className="spin" size={16} /> : <KeyRound size={16} />}
+          Continuar con Google
+        </button>
+        <div className="auth-divider"><span>o usa email</span></div>
         <Field label="Email" value={email} onChange={setEmail} type="email" />
         <Field label="Contrasena" value={password} onChange={setPassword} type="password" />
         {mode === "register" ? <Field label="Nombre" value={displayName} onChange={setDisplayName} /> : null}
@@ -618,6 +660,12 @@ function readStorage<T>(key: string): T | null {
   } catch {
     return null;
   }
+}
+
+function decodeAuthFragment(value: string) {
+  const padded = value.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "=");
+  const bytes = Uint8Array.from(atob(padded), (char) => char.charCodeAt(0));
+  return JSON.parse(new TextDecoder().decode(bytes)) as unknown;
 }
 
 function errorMessage(error: unknown) {

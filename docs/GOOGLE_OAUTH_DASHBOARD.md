@@ -126,6 +126,14 @@ https://assistant.xion.exiliadosrpv2.uk/login
 
 En la seccion `URIs de redireccionamiento autorizados`, agregar:
 
+Para login/registro con Google:
+
+```text
+https://api.asst.xion.exiliadosrpv2.uk/api/auth/google/callback
+```
+
+Para conectar Google Calendar/YouTube dentro del panel:
+
 ```text
 https://api.asst.xion.exiliadosrpv2.uk/api/oauth/google/callback
 ```
@@ -133,10 +141,11 @@ https://api.asst.xion.exiliadosrpv2.uk/api/oauth/google/callback
 Opcional para desarrollo local:
 
 ```text
+http://localhost:8787/api/auth/google/callback
 http://localhost:8787/api/oauth/google/callback
 ```
 
-Este valor debe coincidir con el backend. No cambia por usuario.
+Estos valores deben coincidir con el backend. No cambian por usuario.
 
 ## 6. Crear credenciales
 
@@ -177,26 +186,45 @@ PUBLIC_API_URL=https://api.asst.xion.exiliadosrpv2.uk
 8. Ir a `Deployments`.
 9. Click `Retry deployment` o hacer nuevo push.
 
-## 8. Probar inicio OAuth
+## 8. Probar login con Google
 
-Necesitas estar logueado en Xion Assistant y llamar el endpoint con Bearer token.
+Abre:
+
+```text
+https://assistant.xion.exiliadosrpv2.uk
+```
+
+Click `Continuar con Google`.
+
+El flujo esperado:
+
+1. La web llama `GET /api/auth/google/start`.
+2. Google redirige a `https://api.asst.xion.exiliadosrpv2.uk/api/auth/google/callback`.
+3. El Worker crea o encuentra el usuario.
+4. El Worker guarda tokens Google cifrados con `TOKEN_ENCRYPTION_KEY`.
+5. El Worker redirige a `https://assistant.xion.exiliadosrpv2.uk/#auth=...`.
+6. La web guarda la sesion local y entra al dashboard.
+
+## 9. Probar conector Google
+
+Necesitas estar logueado en Xion Assistant. Desde `Conectores`, click `Conectar` en Google.
 
 Ejemplo:
 
 ```powershell
-curl "https://api.asst.xion.exiliadosrpv2.uk/api/oauth/google/start" `
-  -H "Authorization: Bearer TU_TOKEN_DE_XION"
+curl "https://api.asst.xion.exiliadosrpv2.uk/api/oauth/google/start?user_id=TU_USER_ID"
 ```
 
 Debe devolver una URL de Google.
 
-## 9. Checklist
+## 10. Checklist
 
 - Worker custom domain `api.asst.xion.exiliadosrpv2.uk` activo.
 - `curl https://api.asst.xion.exiliadosrpv2.uk/api/health` responde.
 - Pages domain `assistant.xion.exiliadosrpv2.uk` activo.
 - Google OAuth client tipo `Web application`.
 - JavaScript origin agregado: `https://assistant.xion.exiliadosrpv2.uk`.
+- Redirect URI login agregado: `https://api.asst.xion.exiliadosrpv2.uk/api/auth/google/callback`.
 - Redirect URI agregado: `https://api.asst.xion.exiliadosrpv2.uk/api/oauth/google/callback`.
 - `GOOGLE_CLIENT_ID` guardado como secret en Worker.
 - `GOOGLE_CLIENT_SECRET` guardado como secret en Worker.

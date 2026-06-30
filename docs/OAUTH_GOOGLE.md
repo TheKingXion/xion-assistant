@@ -1,6 +1,6 @@
 # Google OAuth
 
-Status: token exchange foundation added in `v0.6.0`. Authorization URL generation, callback exchange, provider user id resolution, encrypted token storage and redacted account listing exist.
+Status: login/register with Google added in `v0.11.1`. Connector OAuth foundation exists since `v0.6.0`. Authorization URL generation, callback exchange, provider user id resolution, encrypted token storage and redacted account listing exist.
 
 Dashboard step-by-step for current domain:
 
@@ -8,7 +8,13 @@ Dashboard step-by-step for current domain:
 docs/GOOGLE_OAUTH_DASHBOARD.md
 ```
 
-Redirect:
+Login/register redirect:
+
+```text
+https://api.asst.xion.<TU_DOMINIO>/api/auth/google/callback
+```
+
+Connector redirect:
 
 ```text
 https://api.asst.xion.<TU_DOMINIO>/api/oauth/google/callback
@@ -22,6 +28,14 @@ Secrets:
 Tokens must be encrypted server-side.
 
 Start URL:
+
+```text
+GET /api/auth/google/start
+```
+
+This creates a Xion session. If the Google email does not exist, the backend creates the user. The session payload returns to the web in URL hash `#auth=...`; access and refresh tokens stay server-side and encrypted.
+
+Connector start URL:
 
 ```text
 GET /api/oauth/google/start?user_id=<USER_ID>
