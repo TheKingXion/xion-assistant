@@ -412,7 +412,7 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
 
 .composer {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 10px;
   margin-top: 14px;
 }
@@ -424,6 +424,12 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
 }
 
 .send-button { min-width: 108px; }
+.mic-button { width: 44px; padding: 0; }
+.mic-button.listening {
+  border-color: #14635d;
+  background: #e9f6f3;
+  color: #14635d;
+}
 
 .plan-preview {
   margin-top: 12px;

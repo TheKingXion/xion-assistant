@@ -1,6 +1,6 @@
 # START FROM ZERO
 
-Estado: `v0.11.3` foundation. Incluye Command Registry autenticado, shortcuts privados, metricas, chat/cuenta en `/`, dashboard admin en `/admin`, `is_admin`, mensajes persistidos, tema claro/oscuro, login/registro con Google, Gemini texto/TTS via `generateContent`, migracion `0003`, separacion GitHub variables/secrets, guia Cloudflare cloud-first solo con GitHub/Dashboard, pasos para sacar `CLOUDFLARE_API_TOKEN`, pasos Google OAuth para dominio real y proteccion `keep_vars = true` para que deploys Worker no borren variables del dashboard. Deploy real requiere recursos y secrets Cloudflare.
+Estado: `v0.11.4` foundation. Incluye Command Registry autenticado, shortcuts privados, metricas, chat/cuenta en `/`, microfono web, TTS no bloqueante, dashboard admin en `/admin`, `is_admin`, mensajes persistidos, tema claro/oscuro, login/registro con Google, Gemini texto/TTS via `generateContent`, migracion `0003`, separacion GitHub variables/secrets, guia Cloudflare cloud-first solo con GitHub/Dashboard, pasos para sacar `CLOUDFLARE_API_TOKEN`, pasos Google OAuth para dominio real y proteccion `keep_vars = true` para que deploys Worker no borren variables del dashboard. Deploy real requiere recursos y secrets Cloudflare.
 
 ## Cloudflare: Worker, Pages, D1 y R2
 

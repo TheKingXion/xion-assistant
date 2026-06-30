@@ -174,6 +174,14 @@
 - GitHub docs now separate repository secrets from repository variables.
 - Android, desktop and release workflows document future signing/R2 secrets without requiring them for placeholder builds.
 
+## v0.11.4
+
+- Chat normal now uses one AI text call instead of intent classification plus plan generation.
+- Automatic plan cards removed from normal chat replies; action confirmations remain real buttons.
+- Added browser microphone input for spoken prompts.
+- Assistant replies always attempt audio, but TTS runs after text response so chat latency drops.
+- Browser speech synthesis fallback keeps audio available if Worker TTS fails.
+
 ## v0.2.0
 
 - Google OAuth.

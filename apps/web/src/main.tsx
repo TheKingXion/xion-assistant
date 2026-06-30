@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   Activity,
@@ -38,7 +38,7 @@ import {
 import "./styles.css";
 
 const API_URL = import.meta.env.VITE_PUBLIC_API_URL ?? "http://localhost:8787";
-const VERSION = "0.11.3";
+const VERSION = "0.11.4";
 
 type AuthState = { token: string; user: { id: string; email: string; displayName: string; isAdmin: boolean } };
 type View = "dashboard" | "assistant" | "memory" | "contacts" | "voice" | "commands" | "connectors" | "updates" | "settings";
@@ -70,6 +70,17 @@ type AssistantResponse = {
 };
 type ChatItem = { id: string; role: "user" | "assistant" | "system"; text: string; response?: AssistantResponse; createdAt: string };
 type StoredMessage = { id: string; role: "user" | "assistant" | "system"; content: string; createdAt: string };
+type SpeechRecognitionLike = {
+  lang: string;
+  interimResults: boolean;
+  continuous: boolean;
+  onresult: ((event: { results: ArrayLike<{ 0: { transcript: string } }> }) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
 
 const defaultVoiceSettings = (userId: string): VoiceSettings => ({
   userId,
@@ -401,7 +412,9 @@ function AssistantPanel({ api, auth, notify }: { api: ApiClient; auth: AuthState
   const [message, setMessage] = useState("Hola Xion, organiza mi dia y responde con voz");
   const [history, setHistory] = useState<ChatItem[]>([]);
   const [busy, setBusy] = useState(false);
-  const [spokenResponse, setSpokenResponse] = useState(true);
+  const [spokenResponse] = useState(true);
+  const [listening, setListening] = useState(false);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   useEffect(() => {
     void api.get<{ messages: StoredMessage[] }>("/api/assistant/messages?limit=50")
@@ -418,15 +431,16 @@ function AssistantPanel({ api, auth, notify }: { api: ApiClient; auth: AuthState
     setHistory(items);
   };
 
-  const send = async () => {
-    if (!message.trim()) return;
-    const userItem: ChatItem = { id: crypto.randomUUID(), role: "user", text: message.trim(), createdAt: new Date().toISOString() };
+  const send = async (overrideMessage?: string) => {
+    const text = (overrideMessage ?? message).trim();
+    if (!text) return;
+    const userItem: ChatItem = { id: crypto.randomUUID(), role: "user", text, createdAt: new Date().toISOString() };
     saveHistory([...history, userItem]);
     setBusy(true);
     try {
       const response = await api.post<AssistantResponse>("/api/assistant/message", {
-        message: userItem.text,
-        spokenResponse,
+        message: text,
+        spokenResponse: false,
         platform: "web",
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
       });
@@ -438,13 +452,45 @@ function AssistantPanel({ api, auth, notify }: { api: ApiClient; auth: AuthState
         createdAt: new Date().toISOString()
       };
       saveHistory([...history, userItem, assistantItem]);
-      if (response.audio?.audio_base64 && response.audio.format) playAudio(response.audio.audio_base64, response.audio.format);
+      if (spokenResponse) void speakReply(api, auth.user.id, response.response, notify);
       setMessage("");
     } catch (error) {
       saveHistory([...history, userItem, { id: crypto.randomUUID(), role: "system", text: errorMessage(error), createdAt: new Date().toISOString() }]);
     } finally {
       setBusy(false);
     }
+  };
+
+  const startMic = () => {
+    const SpeechRecognition = (window as unknown as { SpeechRecognition?: SpeechRecognitionConstructor; webkitSpeechRecognition?: SpeechRecognitionConstructor }).SpeechRecognition
+      ?? (window as unknown as { webkitSpeechRecognition?: SpeechRecognitionConstructor }).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      notify("Microfono no soportado en este navegador");
+      return;
+    }
+    if (listening) {
+      recognitionRef.current?.stop();
+      setListening(false);
+      return;
+    }
+    const recognition = new SpeechRecognition();
+    recognition.lang = "es-CL";
+    recognition.interimResults = false;
+    recognition.continuous = false;
+    recognition.onresult = (event) => {
+      const transcript = event.results[0]?.[0]?.transcript?.trim() ?? "";
+      if (!transcript) return;
+      setMessage(transcript);
+      void send(transcript);
+    };
+    recognition.onerror = () => {
+      setListening(false);
+      notify("No pude escuchar el microfono");
+    };
+    recognition.onend = () => setListening(false);
+    recognitionRef.current = recognition;
+    setListening(true);
+    recognition.start();
   };
 
   const confirmAction = async (response: AssistantResponse, decision: "confirm" | "cancel") => {
@@ -455,7 +501,7 @@ function AssistantPanel({ api, auth, notify }: { api: ApiClient; auth: AuthState
   };
 
   return (
-    <PanelShell title="Assistant" subtitle="Chat, planes, voz y confirmaciones" icon={<Bot size={20} />} actions={<Toggle checked={spokenResponse} onChange={setSpokenResponse} label="Voz" />}>
+    <PanelShell title="Assistant" subtitle="Chat rapido, microfono y confirmaciones" icon={<Bot size={20} />} actions={<Volume2 size={18} />}>
       <div className="chat-window">
         {history.length ? history.map((item) => (
           <article key={item.id} className={`message ${item.role}`}>
@@ -472,6 +518,7 @@ function AssistantPanel({ api, auth, notify }: { api: ApiClient; auth: AuthState
       </div>
       <div className="composer">
         <textarea value={message} onChange={(event) => setMessage(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) void send(); }} />
+        <button className={listening ? "secondary mic-button listening" : "secondary mic-button"} disabled={busy} title="Hablar" onClick={startMic}>{listening ? <RefreshCcw className="spin" size={18} /> : <Mic size={18} />}</button>
         <button className="primary send-button" disabled={busy || !message.trim()} onClick={() => void send()}>{busy ? <RefreshCcw className="spin" size={18} /> : <Send size={18} />}Enviar</button>
       </div>
     </PanelShell>
@@ -763,6 +810,35 @@ function initials(name: string) {
 function playAudio(base64: string, format: "mp3" | "wav" | "opus") {
   const audio = new Audio(`data:audio/${format};base64,${base64}`);
   void audio.play();
+}
+
+async function speakReply(api: ApiClient, userId: string, text: string, notify: (message: string) => void) {
+  try {
+    const audio = await api.post<{ audio_base64?: string; format: "mp3" | "wav" | "opus" }>("/api/voice/speak", {
+      text,
+      user_id: userId,
+      voice_id: "Kore",
+      language: "es-CL",
+      speed: 1
+    });
+    if (audio.audio_base64) {
+      playAudio(audio.audio_base64, audio.format);
+      return;
+    }
+  } catch {
+    // Browser TTS fallback keeps replies audible without another AI token path.
+  }
+
+  const synth = window.speechSynthesis;
+  if (!synth) {
+    notify("Audio no disponible");
+    return;
+  }
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = "es-CL";
+  utterance.rate = 1;
+  synth.cancel();
+  synth.speak(utterance);
 }
 
 createRoot(document.getElementById("root")!).render(<App />);

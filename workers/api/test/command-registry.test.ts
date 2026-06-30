@@ -47,9 +47,9 @@ describe("command registry", () => {
   it("uses AI fallback for low confidence input", async () => {
     const repository = new InMemoryRepository();
     const gateway = new MockAiGateway();
-    const classify = vi.spyOn(gateway, "classifyIntent");
+    const generate = vi.spyOn(gateway, "generateText");
     await handleAssistantMessage(repository, gateway, { userId: "user-a", message: "ayudame a pensar", spokenResponse: false });
-    expect(classify).toHaveBeenCalledOnce();
+    expect(generate).toHaveBeenCalledOnce();
     expect((await repository.listCommandUsage("user-a"))[0]?.usedAiFallback).toBe(true);
   });
 

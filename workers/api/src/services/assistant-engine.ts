@@ -87,7 +87,6 @@ export const handleAssistantMessage = async (
     };
   }
 
-  const intent = await aiGateway.classifyIntent({ userId: input.userId, message: input.message });
   const aliasIntent = extractWifeAliasMessage(input.message);
 
   if (aliasIntent) {
@@ -113,14 +112,9 @@ export const handleAssistantMessage = async (
       };
     }
 
-    const riskLevel = intent.riskLevel;
+    const riskLevel: RiskLevel = "high";
     const recipient = prepared?.recipient ?? fallbackMemory?.value ?? aliasIntent.alias;
     const channel = prepared?.channel ?? "preferred";
-    const aiPlan = await aiGateway.createActionPlan({
-      userId: input.userId,
-      goal: `Enviar mensaje a ${recipient} por ${channel}`,
-      riskLevel
-    });
     const response = `Le enviare a ${recipient} por ${channel}: "${aliasIntent.message}". Confirmas envio?`;
     await repository.createAssistantMessage({
       userId: input.userId,
@@ -182,10 +176,6 @@ export const handleAssistantMessage = async (
         id: savedPlan.plan.id,
         title: "Enviar mensaje con confirmacion",
         riskLevel,
-        ai: {
-          provider: aiPlan.usage.provider,
-          model: aiPlan.usage.model
-        },
         steps: savedPlan.steps.map((step) => ({
           id: step.id,
           order: step.orderIndex,
@@ -198,14 +188,9 @@ export const handleAssistantMessage = async (
     };
   }
 
-  const aiPlan = await aiGateway.createActionPlan({
-    userId: input.userId,
-    goal: input.message,
-    riskLevel: intent.riskLevel
-  });
   const generated = await aiGateway.generateText({
     userId: input.userId,
-    prompt: `Responde como Xion Assistant. Mensaje: ${input.message}`
+    prompt: input.message
   });
   const response = generated.text;
   await repository.createAssistantMessage({
@@ -217,17 +202,7 @@ export const handleAssistantMessage = async (
     ok: true,
     status: "completed",
     response,
-    plan: {
-      title: aiPlan.plan.title,
-      riskLevel: aiPlan.plan.riskLevel,
-      ai: aiPlan.usage,
-      steps: aiPlan.plan.steps.map((step, index) => ({
-        order: index + 1,
-        title: step.title,
-        status: "completed",
-        requiresConfirmation: step.requiresConfirmation
-      }))
-    },
+    plan: null,
     audio: await safeSpeak(response)
   };
 };

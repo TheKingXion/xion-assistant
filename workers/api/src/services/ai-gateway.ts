@@ -56,7 +56,7 @@ export class GoogleGeminiGateway implements AiGateway {
     return this.config.model ?? "gemini-2.5-flash";
   }
 
-  private async generate(prompt: string, options?: { json?: boolean; small?: boolean }) {
+  private async generate(prompt: string, options?: { json?: boolean; small?: boolean; maxOutputTokens?: number }) {
     if (!this.config.apiKey) throw new Error("google_ai_api_key_required");
     const model = options?.small ? (this.config.smallModel ?? this.model) : this.model;
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
@@ -66,6 +66,7 @@ export class GoogleGeminiGateway implements AiGateway {
         contents: [{ role: "user", parts: [{ text: prompt }] }],
         generationConfig: {
           temperature: options?.json ? 0.1 : 0.7,
+          maxOutputTokens: options?.maxOutputTokens ?? (options?.json ? 180 : 220),
           ...(options?.json ? { responseMimeType: "application/json" } : {})
         }
       })
@@ -78,7 +79,7 @@ export class GoogleGeminiGateway implements AiGateway {
   }
 
   async generateText(input: { userId: string; prompt: string }) {
-    const generated = await this.generate(`Responde en espanol chileno, breve y util.\n\nUsuario ${input.userId}:\n${input.prompt}`);
+    const generated = await this.generate(`Responde breve en espanol chileno. Maximo 3 frases. No crees planes salvo que pidan accion.\nUsuario ${input.userId}: ${input.prompt}`, { maxOutputTokens: 180 });
     return { text: generated.text, usage: usage({ ...this.config, model: generated.model }, input.prompt, generated.text) };
   }
 
@@ -93,7 +94,7 @@ export class GoogleGeminiGateway implements AiGateway {
 Devuelve JSON estricto:
 {"intent":"assistant.chat|communication.send_message|calendar.create_event|spotify.play|spotify.pause|youtube.search|reminder.create|memory.create|voice.update_settings","riskLevel":"low|medium|high","entities":{"recipient":"","message":"","query":"","time":""},"requiresClarification":false}
 Mensaje: ${input.message}`;
-    const generated = await this.generate(prompt, { json: true, small: true });
+    const generated = await this.generate(prompt, { json: true, small: true, maxOutputTokens: 120 });
     const parsed = safeJson<Omit<IntentResult, "usage">>(generated.text, fallback);
     return {
       intent: parsed.intent || fallback.intent,
@@ -108,7 +109,7 @@ Mensaje: ${input.message}`;
     const prompt = `Extrae entidades del mensaje. Devuelve solo JSON plano con strings.
 Campos utiles: recipient, message, query, time, date, app, voice.
 Mensaje: ${input.message}`;
-    const generated = await this.generate(prompt, { json: true, small: true });
+    const generated = await this.generate(prompt, { json: true, small: true, maxOutputTokens: 120 });
     return {
       entities: safeJson<Record<string, string>>(generated.text, {}),
       usage: usage({ ...this.config, model: generated.model }, input.message, generated.text)
@@ -116,7 +117,7 @@ Mensaje: ${input.message}`;
   }
 
   async summarize(input: { userId: string; text: string }) {
-    const generated = await this.generate(`Resume en maximo 3 frases:\n${input.text}`, { small: true });
+    const generated = await this.generate(`Resume en maximo 3 frases:\n${input.text}`, { small: true, maxOutputTokens: 120 });
     return { summary: generated.text, usage: usage({ ...this.config, model: generated.model }, input.text, generated.text) };
   }
 
@@ -125,7 +126,7 @@ Mensaje: ${input.message}`;
     const prompt = `Crea plan de accion para asistente personal. Devuelve JSON estricto compatible:
 {"title":"","goal":"","riskLevel":"${riskLevel}","steps":[{"title":"","description":"","toolName":"","requiresConfirmation":false}]}
 Reglas: si riesgo high, algun paso debe requerir confirmacion. Goal: ${input.goal}`;
-    const generated = await this.generate(prompt, { json: true });
+    const generated = await this.generate(prompt, { json: true, maxOutputTokens: 220 });
     const fallback = await new MockAiGateway({ ...this.config, model: generated.model }).createActionPlan(input);
     const plan = safeJson<AssistantPlan>(generated.text, fallback.plan);
     return { plan, usage: usage({ ...this.config, model: generated.model }, input.goal, generated.text) };

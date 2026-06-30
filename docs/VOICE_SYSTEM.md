@@ -53,3 +53,10 @@ Set `ttsEnabled=false` or `autoPlayResponses=false`.
 ## Privacy Mode
 
 Privacy mode means no auto playback, no wake word, no audio persistence, and text-only responses.
+## Web Microphone
+
+`v0.11.4` adds browser microphone input through Web Speech Recognition when available. The browser transcribes locally/provided-by-browser and sends the final text to the Worker. This avoids sending raw audio to the backend and avoids STT token usage for the web chat.
+
+## Web Reply Audio
+
+Web replies always attempt audio. The chat request returns text first; the web app then calls `/api/voice/speak` for TTS. If Worker TTS fails, browser speech synthesis is used as fallback.

@@ -9,11 +9,11 @@
 3. Try private shortcuts, then system Command Registry.
 4. Resolve parameters and confidence.
 5. Execute safe command, request missing data, or create confirmation.
-6. Use AI Gateway only when deterministic confidence is low.
+6. Use one short AI text call when deterministic confidence is low.
 7. Resolve contact or memory by `user_id`.
-8. Create plan, return text and optionally TTS.
+8. Create plans only for command/action flows, then return text.
 
-Every optimized command persists action and plan. AI fallback records zero saved tokens. Learning proposals become active only after user confirmation.
+Every optimized command persists action and plan when needed. Normal chat does not auto-generate plan cards. AI fallback records zero saved tokens. Learning proposals become active only after user confirmation.
 
 ## Plans
 
@@ -25,7 +25,7 @@ Initial tool registry includes name, description, scopes, auth, confirmation fla
 
 ## Spoken Response
 
-If `spokenResponse=true`, engine calls TTS gateway.
+If `spokenResponse=true`, engine calls TTS gateway. In the web chat, `v0.11.4` returns text first and then calls `/api/voice/speak` separately so audio does not block the response.
 
 ## Action Logging
 
