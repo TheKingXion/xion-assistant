@@ -1,6 +1,6 @@
 # START FROM ZERO
 
-Estado: `v0.10.3` foundation. Incluye Command Registry autenticado, shortcuts privados, metricas, UI, migracion `0002` y guia Cloudflare cloud-first corregida para deploy real. Deploy real requiere recursos y secrets Cloudflare.
+Estado: `v0.10.4` foundation. Incluye Command Registry autenticado, shortcuts privados, metricas, UI, migracion `0002`, guia Cloudflare cloud-first y pasos Google OAuth para dominio real. Deploy real requiere recursos y secrets Cloudflare.
 
 ## Cloudflare: Worker, Pages, D1 y R2
 

@@ -131,8 +131,8 @@ El bucket queda privado. Descargas deben pasar por Worker o por URLs firmadas cu
 Rutas previstas:
 
 ```text
-desktop/windows/xion-assistant-setup-0.10.3.exe
-mobile/android/xion-assistant-0.10.3.apk
+desktop/windows/xion-assistant-setup-0.10.4.exe
+mobile/android/xion-assistant-0.10.4.apk
 latest/windows.json
 latest/android.json
 checksums/

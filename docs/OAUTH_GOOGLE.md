@@ -2,6 +2,12 @@
 
 Status: token exchange foundation added in `v0.6.0`. Authorization URL generation, callback exchange, provider user id resolution, encrypted token storage and redacted account listing exist.
 
+Dashboard step-by-step for current domain:
+
+```text
+docs/GOOGLE_OAUTH_DASHBOARD.md
+```
+
 Redirect:
 
 ```text

@@ -30,7 +30,29 @@ Use `https://api.asst.xion.<TU_DOMINIO>/api/oauth/<provider>/callback`.
 
 ## Worker route no responde
 
-Check `wrangler.toml` route and Cloudflare zone.
+Use Cloudflare Dashboard custom domain, not a placeholder route in `wrangler.toml`.
+
+If this fails:
+
+```powershell
+curl https://api.asst.xion.exiliadosrpv2.uk/api/health
+```
+
+with:
+
+```text
+curl: (6) Could not resolve host
+```
+
+then `api.asst.xion.exiliadosrpv2.uk` does not exist in DNS yet. Fix:
+
+1. Go to `Workers & Pages`.
+2. Open `xion-assistant-api`.
+3. Open `Settings`.
+4. Open `Domains & Routes`.
+5. Add custom domain `api.asst.xion.exiliadosrpv2.uk`.
+6. Wait for Cloudflare DNS/SSL.
+7. Retry health curl.
 
 ## Pages no apunta al dominio correcto
 

@@ -120,6 +120,12 @@
 - Documented Dashboard custom domain setup to prevent `<TU_DOMINIO>` deploy failures.
 - Added `.dev.vars.example` for local Worker development variables.
 
+## v0.10.4
+
+- Added Google OAuth dashboard setup for `exiliadosrpv2.uk`.
+- Documented exact JavaScript origins and redirect URIs for Google OAuth.
+- Documented DNS/custom-domain fix for unresolved API host.
+
 ## v0.2.0
 
 - Google OAuth.
