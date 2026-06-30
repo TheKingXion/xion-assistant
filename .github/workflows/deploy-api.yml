@@ -32,4 +32,4 @@ jobs:
       - name: Validate API route
         run: curl --fail "${PUBLIC_API_URL}/api/health"
         env:
-          PUBLIC_API_URL: ${{ secrets.PUBLIC_API_URL }}
+          PUBLIC_API_URL: ${{ vars.PUBLIC_API_URL }}

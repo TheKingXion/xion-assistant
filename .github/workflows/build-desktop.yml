@@ -6,6 +6,8 @@ on:
 jobs:
   build-desktop:
     runs-on: windows-latest
+    env:
+      R2_BUCKET_NAME: ${{ vars.R2_BUCKET_NAME }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4

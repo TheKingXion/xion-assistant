@@ -1,6 +1,6 @@
 # START FROM ZERO
 
-Estado: `v0.11.2` foundation. Incluye Command Registry autenticado, shortcuts privados, metricas, chat/cuenta en `/`, dashboard admin en `/admin`, `is_admin`, mensajes persistidos, tema claro/oscuro, login/registro con Google, Gemini texto/TTS via `generateContent`, migracion `0003`, guia Cloudflare cloud-first solo con GitHub/Dashboard, pasos para sacar `CLOUDFLARE_API_TOKEN`, pasos Google OAuth para dominio real y proteccion `keep_vars = true` para que deploys Worker no borren variables del dashboard. Deploy real requiere recursos y secrets Cloudflare.
+Estado: `v0.11.3` foundation. Incluye Command Registry autenticado, shortcuts privados, metricas, chat/cuenta en `/`, dashboard admin en `/admin`, `is_admin`, mensajes persistidos, tema claro/oscuro, login/registro con Google, Gemini texto/TTS via `generateContent`, migracion `0003`, separacion GitHub variables/secrets, guia Cloudflare cloud-first solo con GitHub/Dashboard, pasos para sacar `CLOUDFLARE_API_TOKEN`, pasos Google OAuth para dominio real y proteccion `keep_vars = true` para que deploys Worker no borren variables del dashboard. Deploy real requiere recursos y secrets Cloudflare.
 
 ## Cloudflare: Worker, Pages, D1 y R2
 
@@ -154,40 +154,44 @@ Crea token con permisos:
 - Pages: Edit.
 - Zone DNS: Edit si GitHub gestionara DNS.
 
-## 10. GitHub Secrets
+## 10. GitHub Secrets y Variables
 
-Configura:
+Repository secrets actuales:
 
 ```text
 CLOUDFLARE_API_TOKEN
 CLOUDFLARE_ACCOUNT_ID
 CLOUDFLARE_D1_DATABASE_ID
-R2_ACCESS_KEY_ID
-R2_SECRET_ACCESS_KEY
-R2_BUCKET_NAME
 JWT_SECRET
 TOKEN_ENCRYPTION_KEY
+```
+
+Repository variables actuales:
+
+```text
+PUBLIC_WEB_URL
+PUBLIC_API_URL
+R2_BUCKET_NAME
+```
+
+Secrets futuros para releases, apps y proveedores:
+
+```text
+R2_ACCESS_KEY_ID
+R2_SECRET_ACCESS_KEY
 GOOGLE_CLIENT_ID
 GOOGLE_CLIENT_SECRET
 SPOTIFY_CLIENT_ID
 SPOTIFY_CLIENT_SECRET
-AI_PROVIDER
 AI_API_KEY
-AI_MODEL
 AI_SMALL_MODEL
 AI_STT_MODEL
 AI_TTS_MODEL
-AI_TTS_PROVIDER
-AI_TTS_DEFAULT_VOICE
-AI_TTS_DEFAULT_LANGUAGE
-AI_TTS_DEFAULT_SPEED
 ANDROID_KEYSTORE_BASE64
 ANDROID_KEYSTORE_PASSWORD
 ANDROID_KEY_ALIAS
 TAURI_PRIVATE_KEY
 TAURI_KEY_PASSWORD
-PUBLIC_WEB_URL
-PUBLIC_API_URL
 ```
 
 ## 11. Subdominios

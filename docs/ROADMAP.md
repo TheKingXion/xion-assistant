@@ -168,6 +168,12 @@
 - Public web root now shows chat/account only.
 - Added light/dark theme toggle.
 
+## v0.11.3
+
+- GitHub workflows now read public URLs and R2 bucket name from repository variables.
+- GitHub docs now separate repository secrets from repository variables.
+- Android, desktop and release workflows document future signing/R2 secrets without requiring them for placeholder builds.
+
 ## v0.2.0
 
 - Google OAuth.

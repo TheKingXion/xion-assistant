@@ -2,8 +2,8 @@
 
 | Name | Required | Where | Safe Example | Description |
 |---|---:|---|---|---|
-| `PUBLIC_WEB_URL` | Yes | Worker, GitHub | `https://assistant.xion.<TU_DOMINIO>` | Public web URL. |
-| `PUBLIC_API_URL` | Yes | Worker, GitHub | `https://api.asst.xion.<TU_DOMINIO>` | API URL. |
+| `PUBLIC_WEB_URL` | Yes | Worker variable, GitHub variable | `https://assistant.xion.<TU_DOMINIO>` | Public web URL. |
+| `PUBLIC_API_URL` | Yes | Worker variable, GitHub variable | `https://api.asst.xion.<TU_DOMINIO>` | API URL. |
 | `VITE_PUBLIC_API_URL` | Yes web | Pages, local | `http://localhost:8787` | Browser API target. |
 | `JWT_SECRET` | Yes | Worker secret | `change-me-32-plus-chars` | Session signing secret. |
 | `TOKEN_ENCRYPTION_KEY` | Yes | Worker secret | `change-me-32-plus-chars` | OAuth token encryption key. |
@@ -23,7 +23,7 @@
 | `CLOUDFLARE_D1_DATABASE_ID` | Deploy | GitHub secret | hidden | D1 database id. |
 | `R2_ACCESS_KEY_ID` | Release | GitHub secret | hidden | R2 S3 access id. |
 | `R2_SECRET_ACCESS_KEY` | Release | GitHub secret | hidden | R2 S3 secret. |
-| `R2_BUCKET_NAME` | Release | GitHub secret | `xion-assistant-releases` | Release bucket. |
+| `R2_BUCKET_NAME` | Release | GitHub variable | `xion-assistant-releases` | Release bucket name; not secret. |
 | `GOOGLE_CLIENT_ID` | Yes for Google login | Worker secret, GitHub if Actions deploy Worker | hidden | Google OAuth client id for login/register and Google connectors. |
 | `GOOGLE_CLIENT_SECRET` | Yes for Google login | Worker secret, GitHub if Actions deploy Worker | hidden | Google OAuth client secret for login/register and Google connectors. |
 | `SPOTIFY_CLIENT_ID` | Later | GitHub/Worker | hidden | Spotify OAuth id. |

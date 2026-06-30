@@ -510,7 +510,7 @@ Si no lo ves:
 3. Revisar columna/panel derecho.
 4. Copiar `Account ID`.
 
-## 16. GitHub Actions secrets
+## 16. GitHub Actions variables y secrets
 
 En GitHub:
 
@@ -524,20 +524,19 @@ En GitHub:
 CLOUDFLARE_API_TOKEN
 CLOUDFLARE_ACCOUNT_ID
 CLOUDFLARE_D1_DATABASE_ID
-R2_BUCKET_NAME
 JWT_SECRET
 TOKEN_ENCRYPTION_KEY
-PUBLIC_WEB_URL
-PUBLIC_API_URL
 ```
 
-Valores no secretos:
+6. Crear repository variables:
 
 ```env
 R2_BUCKET_NAME=xion-assistant-releases
 PUBLIC_WEB_URL=https://assistant.xion.<TU_DOMINIO>
 PUBLIC_API_URL=https://api.asst.xion.<TU_DOMINIO>
 ```
+
+No pongas `PUBLIC_WEB_URL`, `PUBLIC_API_URL` ni `R2_BUCKET_NAME` como secrets. Los workflows los leen desde `vars.*`.
 
 Pendientes para fases futuras:
 

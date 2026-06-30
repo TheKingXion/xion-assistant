@@ -6,6 +6,8 @@ on:
 jobs:
   build-android:
     runs-on: ubuntu-latest
+    env:
+      R2_BUCKET_NAME: ${{ vars.R2_BUCKET_NAME }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
