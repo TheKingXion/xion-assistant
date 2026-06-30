@@ -402,7 +402,84 @@ https://assistant.xion.<TU_DOMINIO>
 
 Debe abrir web/login/panel.
 
-## 14. GitHub Actions secrets
+## 14. Crear `CLOUDFLARE_API_TOKEN`
+
+En `dash.cloudflare.com`:
+
+1. Arriba a la derecha, click en tu perfil.
+2. Abrir `My Profile`.
+3. Abrir `API Tokens`.
+4. Click `Create Token`.
+5. Elegir `Custom token`.
+6. Nombre:
+
+```text
+xion-assistant-github-actions
+```
+
+7. En `Permissions`, agregar:
+
+```text
+Account - Cloudflare Workers Scripts - Edit
+Account - Workers R2 Storage - Edit
+Account - D1 - Edit
+Account - Pages - Edit
+Account - Account Settings - Read
+Zone - DNS - Edit
+```
+
+8. En `Account Resources`, elegir:
+
+```text
+Include - Tu cuenta Cloudflare
+```
+
+9. En `Zone Resources`, elegir:
+
+```text
+Include - Specific zone - <TU_DOMINIO>
+```
+
+Para dominio real actual:
+
+```text
+exiliadosrpv2.uk
+```
+
+10. Click `Continue to summary`.
+11. Revisar permisos.
+12. Click `Create Token`.
+13. Copiar token mostrado.
+
+Importante:
+
+- Cloudflare muestra token una sola vez.
+- No pegar token en docs, chat, frontend ni repo.
+- Guardarlo solo como GitHub secret `CLOUDFLARE_API_TOKEN`.
+- Si pierdes token, crea otro y borra viejo.
+
+## 15. Sacar `CLOUDFLARE_ACCOUNT_ID`
+
+En `dash.cloudflare.com`:
+
+1. Entrar a tu cuenta.
+2. Abrir cualquier recurso de la cuenta, por ejemplo `Workers & Pages`.
+3. En barra lateral derecha o en overview de cuenta, buscar `Account ID`.
+4. Copiar valor.
+5. Guardarlo en GitHub secret:
+
+```text
+CLOUDFLARE_ACCOUNT_ID
+```
+
+Si no lo ves:
+
+1. Abrir `Workers & Pages`.
+2. Abrir `Overview`.
+3. Revisar columna/panel derecho.
+4. Copiar `Account ID`.
+
+## 16. GitHub Actions secrets
 
 En GitHub:
 
@@ -451,18 +528,7 @@ TAURI_PRIVATE_KEY
 TAURI_KEY_PASSWORD
 ```
 
-Permisos recomendados para token Cloudflare:
-
-```text
-Account - Cloudflare Workers Scripts - Edit
-Account - Workers R2 Storage - Edit
-Account - D1 - Edit
-Account - Pages - Edit
-Account - Account Settings - Read
-Zone - DNS - Edit
-```
-
-## 15. Google OAuth desde Dashboard
+## 17. Google OAuth desde Dashboard
 
 Usar guia completa:
 
@@ -489,7 +555,7 @@ Despues de crear OAuth Client:
 5. Agregar ambos como secrets.
 6. Retry deployment.
 
-## 16. Validacion final desde navegador
+## 18. Validacion final desde navegador
 
 API:
 

@@ -138,6 +138,12 @@
 - Removed local Wrangler/manual command flow from the official Cloudflare guide.
 - Kept D1 migrations, Worker deploy, Pages deploy, bindings, domains and secrets as dashboard steps.
 
+## v0.10.7
+
+- Added dashboard steps to create `CLOUDFLARE_API_TOKEN`.
+- Added dashboard steps to find `CLOUDFLARE_ACCOUNT_ID`.
+- Linked Cloudflare token values to GitHub Actions secrets without exposing tokens.
+
 ## v0.2.0
 
 - Google OAuth.
