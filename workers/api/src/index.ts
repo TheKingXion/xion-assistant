@@ -1,6 +1,6 @@
 import { zValidator } from "@hono/zod-validator";
 import { assistantRequestSchema, commandMatchSchema, commandShortcutSchema, updateManifestSchema, voiceSettingsSchema } from "@xion-assistant/shared";
-import { listVoices, synthesizeSpeechAsync } from "@xion-assistant/voice";
+import { listGoogleVoices, listVoices, synthesizeSpeechAsync } from "@xion-assistant/voice";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { z } from "zod";
@@ -879,7 +879,21 @@ app.get("/api/plans/:id", async (c) => {
   return c.json({ ok: true, ...plan });
 });
 
-app.get("/api/voice/voices", (c) => c.json({ ok: true, voices: listVoices() }));
+app.get("/api/voice/voices", async (c) => {
+  const provider = c.req.query("provider");
+  const languageCode = c.req.query("language") ?? c.env.AI_TTS_DEFAULT_LANGUAGE ?? "es-CL";
+  if (provider === "google") {
+    try {
+      const googleVoiceInput: { apiKey?: string; languageCode?: string } = { languageCode };
+      if (c.env.AI_API_KEY) googleVoiceInput.apiKey = c.env.AI_API_KEY;
+      const voices = await listGoogleVoices(googleVoiceInput);
+      return c.json({ ok: true, source: "google", voices });
+    } catch {
+      return c.json({ ok: true, source: "fallback", voices: listVoices().filter((voice) => voice.provider === "google") });
+    }
+  }
+  return c.json({ ok: true, source: "local", voices: listVoices() });
+});
 
 app.get("/api/voice/settings", async (c) => {
   const userId = c.req.query("user_id");

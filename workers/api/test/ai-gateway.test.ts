@@ -11,7 +11,7 @@ describe("google ai gateway", () => {
       expect(prompt).toContain("Hola");
       expect(prompt).toContain("claro, directo y completo");
       expect(prompt).not.toContain("Maximo 3 frases");
-      expect(body.generationConfig.maxOutputTokens).toBe(560);
+      expect(body.generationConfig.maxOutputTokens).toBe(420);
       return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: "Respuesta real" }] } }] }), {
         status: 200,
         headers: { "content-type": "application/json" }

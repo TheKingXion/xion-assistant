@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { listVoices, synthesizeSpeech, synthesizeSpeechAsync } from "./index";
+import { listGoogleVoices, listVoices, synthesizeSpeech, synthesizeSpeechAsync } from "./index";
 
 describe("voice gateway mock", () => {
   it("lists selectable voices", () => {
@@ -46,5 +46,21 @@ describe("voice gateway mock", () => {
     expect(result.format).toBe("wav");
     expect(Buffer.from(result.audio_base64!, "base64").toString("utf8", 0, 4)).toBe("RIFF");
     expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("lists Google voices from voices:list", async () => {
+    const fetchMock = vi.fn(async (url: URL) => {
+      expect(String(url)).toContain("https://texttospeech.googleapis.com/v1/voices");
+      expect(String(url)).toContain("languageCode=es-CL");
+      return new Response(JSON.stringify({ voices: [{ name: "es-CL-Standard-A", languageCodes: ["es-CL"], ssmlGender: "FEMALE", naturalSampleRateHertz: 24000 }] }), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const voices = await listGoogleVoices({ apiKey: "secret-key", languageCode: "es-CL" });
+
+    expect(voices[0]).toMatchObject({ id: "es-CL-Standard-A", provider: "google", language: "es-CL" });
   });
 });

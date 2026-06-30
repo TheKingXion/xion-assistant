@@ -621,7 +621,21 @@ function VoicePanel({ api, userId, notify }: { api: ApiClient; userId: string; n
       api.get<{ settings: VoiceSettings | null }>(`/api/voice/settings?user_id=${encodeURIComponent(userId)}`).then((data) => { if (data.settings) setSettings(data.settings); })
     ]);
   }, [api, userId]);
-  const save = async () => { await api.put<{ settings: VoiceSettings }>("/api/voice/settings", settings); notify("Voz guardada"); };
+  const save = async () => {
+    await api.put<{ settings: VoiceSettings }>("/api/voice/settings", settings);
+    localStorage.setItem(`xion_voice_settings:${userId}`, JSON.stringify(settings));
+    notify("Voz guardada");
+  };
+  const refreshGoogle = async () => {
+    setBusy(true);
+    try {
+      const data = await api.get<{ voices: Voice[]; source: string }>(`/api/voice/voices?provider=google&language=${encodeURIComponent(settings.language)}`);
+      setVoices(data.voices);
+      notify(data.source === "google" ? "Voces Google actualizadas" : "Usando voces Google locales");
+    } finally {
+      setBusy(false);
+    }
+  };
   const preview = async () => {
     setBusy(true);
     try {
@@ -652,6 +666,7 @@ function VoicePanel({ api, userId, notify }: { api: ApiClient; userId: string; n
       </div>
       <div className="composer compact">
         <textarea value={previewText} onChange={(event) => setPreviewText(event.target.value)} />
+        <button className="secondary" disabled={busy} onClick={() => void refreshGoogle()}><RefreshCcw size={16} />Google</button>
         <button className="secondary" disabled={busy} onClick={() => void preview()}>{busy ? <RefreshCcw className="spin" size={16} /> : <Play size={16} />}Preview</button>
         <button className="primary" onClick={() => void save()}><Save size={16} />Guardar</button>
       </div>
@@ -832,14 +847,24 @@ function playAudio(base64: string, format: "mp3" | "wav" | "opus") {
 }
 
 async function speakReply(api: ApiClient, userId: string, text: string, notify: (message: string) => void) {
+  const settings = readStorage<VoiceSettings>(`xion_voice_settings:${userId}`) ?? defaultVoiceSettings(userId);
+  const voiceText = text.length > 700 ? `${text.slice(0, 680).trim()}. Puedo ampliar si quieres.` : text;
   try {
-    const audio = await api.post<{ audio_base64?: string; format: "mp3" | "wav" | "opus" }>("/api/voice/speak", {
-      text,
+    const audioRequest = api.post<{ audio_base64?: string; format: "mp3" | "wav" | "opus" }>("/api/voice/speak", {
+      text: voiceText,
       user_id: userId,
-      voice_id: "Kore",
-      language: "es-CL",
-      speed: 1
+      voice_id: settings.selectedVoiceId,
+      language: settings.language,
+      speed: settings.speed
     });
+    const audio = await Promise.race([
+      audioRequest,
+      new Promise<"timeout">((resolve) => window.setTimeout(() => resolve("timeout"), 2500))
+    ]);
+    if (audio === "timeout") {
+      speakWithBrowser(voiceText, settings.language, settings.speed, notify);
+      return;
+    }
     if (audio.audio_base64) {
       playAudio(audio.audio_base64, audio.format);
       return;
@@ -848,14 +873,18 @@ async function speakReply(api: ApiClient, userId: string, text: string, notify: 
     // Browser TTS fallback keeps replies audible without another AI token path.
   }
 
+  speakWithBrowser(voiceText, settings.language, settings.speed, notify);
+}
+
+function speakWithBrowser(text: string, language: string, speed: number, notify?: (message: string) => void) {
   const synth = window.speechSynthesis;
   if (!synth) {
-    notify("Audio no disponible");
+    notify?.("Audio no disponible");
     return;
   }
   const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = "es-CL";
-  utterance.rate = 1;
+  utterance.lang = language;
+  utterance.rate = speed;
   synth.cancel();
   synth.speak(utterance);
 }

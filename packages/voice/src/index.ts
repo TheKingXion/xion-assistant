@@ -48,6 +48,35 @@ const voices: Voice[] = [
 
 export const listVoices = () => voices;
 
+export const listGoogleVoices = async (input: { apiKey?: string; languageCode?: string } = {}) => {
+  if (!input.apiKey) return voices.filter((voice) => voice.provider === "google");
+  const url = new URL("https://texttospeech.googleapis.com/v1/voices");
+  url.searchParams.set("key", input.apiKey);
+  if (input.languageCode) url.searchParams.set("languageCode", input.languageCode);
+  const response = await fetch(url);
+  if (!response.ok) throw new Error("google_voices_list_failed");
+  const payload = (await response.json()) as {
+    voices?: Array<{
+      name: string;
+      languageCodes?: string[];
+      ssmlGender?: string;
+      naturalSampleRateHertz?: number;
+    }>;
+  };
+  return (payload.voices ?? []).map((voice): Voice => {
+    const mapped: Voice = {
+      id: voice.name,
+      provider: "google",
+      voiceKey: voice.name,
+      displayName: voice.name,
+      language: voice.languageCodes?.[0] ?? input.languageCode ?? "und"
+    };
+    const sampleUrl = voice.naturalSampleRateHertz ? `sample-rate:${voice.naturalSampleRateHertz}` : voice.ssmlGender;
+    if (sampleUrl) mapped.sampleUrl = sampleUrl;
+    return mapped;
+  });
+};
+
 export const validateVoiceSettings = (settings: VoiceSettingsLike) =>
   voices.some((voice) => voice.id === settings.selectedVoiceId);
 
@@ -110,7 +139,13 @@ export const synthesizeSpeechAsync = async (input: {
   model?: string | undefined;
 }): Promise<SpeechResult> => {
   if (input.provider !== "google" || !input.apiKey) return synthesizeSpeech(input);
-  const voice = voices.find((item) => item.id === input.voiceId || item.voiceKey === input.voiceId) ?? voices.find((item) => item.id === "Kore") ?? voices[0];
+  const voice = voices.find((item) => item.id === input.voiceId || item.voiceKey === input.voiceId) ?? {
+    id: input.voiceId,
+    provider: "google",
+    voiceKey: input.voiceId,
+    displayName: input.voiceId,
+    language: input.language
+  };
   if (!voice) throw new Error("No voices configured");
   const model = input.model ?? "gemini-2.5-flash-preview-tts";
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {

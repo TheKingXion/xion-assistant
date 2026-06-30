@@ -205,6 +205,46 @@ describe("xion assistant api", () => {
     expect(json.response).toContain("3:33");
   });
 
+  it("keeps mandatory memory beyond recent chat window", async () => {
+    const auth = await createAuthenticatedUser("mandatory-memory-user");
+    await app.request(
+      "/api/assistant/message",
+      {
+        method: "POST",
+        body: JSON.stringify({ message: "Mis tokens de Codex se reinician a las 3:33", spokenResponse: false }),
+        headers: { "content-type": "application/json", authorization: auth.authorization }
+      },
+      env
+    );
+    for (let index = 0; index < 12; index += 1) {
+      await app.request(
+        "/api/assistant/message",
+        {
+          method: "POST",
+          body: JSON.stringify({ message: `mensaje intermedio ${index}`, spokenResponse: false }),
+          headers: { "content-type": "application/json", authorization: auth.authorization }
+        },
+        env
+      );
+    }
+
+    const followUp = await app.request(
+      "/api/assistant/message",
+      {
+        method: "POST",
+        body: JSON.stringify({ message: "A que hora se reinician mis tokens de Codex?", spokenResponse: false }),
+        headers: { "content-type": "application/json", authorization: auth.authorization }
+      },
+      env
+    );
+    const json = (await followUp.json()) as any;
+    const memories = await app.request(`/api/memory?user_id=${auth.userId}`, {}, env);
+    const memoryJson = (await memories.json()) as any;
+
+    expect(memoryJson.memories.some((item: any) => item.memoryType === "conversation_note" && item.value.includes("3:33"))).toBe(true);
+    expect(json.response).toContain("3:33");
+  });
+
   it("transcribes mobile audio with authenticated mock STT", async () => {
     const auth = await createAuthenticatedUser("stt-user");
     const res = await app.request(
@@ -966,6 +1006,15 @@ describe("xion assistant api", () => {
 
     expect(((await userA.json()) as any).settings.userId).toBe("user-a");
     expect(((await userB.json()) as any).settings).toBeNull();
+  });
+
+  it("lists Google voices through the Worker with fallback", async () => {
+    const res = await app.request("/api/voice/voices?provider=google&language=es-CL", {}, env);
+    const json = (await res.json()) as any;
+
+    expect(res.status).toBe(200);
+    expect(json.ok).toBe(true);
+    expect(json.voices.some((voice: any) => voice.provider === "google")).toBe(true);
   });
 
   it("returns update manifest for supported platforms", async () => {

@@ -54,6 +54,53 @@ const compactText = (value: string, maxLength = 220) => {
   return normalized.length > maxLength ? `${normalized.slice(0, maxLength - 3).trim()}...` : normalized;
 };
 
+const memoryKeyForMessage = (message: string) => compactText(message.toLowerCase(), 90);
+
+const termsFor = (text: string) =>
+  new Set(
+    text
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .split(/[^a-z0-9]+/)
+      .filter((term) => term.length > 2 && !["que", "con", "para", "por", "las", "los", "una", "uno", "del", "como", "cuando"].includes(term))
+  );
+
+const persistConversationMemory = async (repository: Repository, userId: string, message: string) => {
+  const value = compactText(message, 360);
+  if (value.length < 4) return;
+  const key = memoryKeyForMessage(value);
+  const existing = await repository.resolveMemory(userId, key);
+  if (existing) {
+    await repository.updateMemory(userId, existing.id, { value, confirmed: true, confidence: 0.8 });
+    return;
+  }
+  await repository.createMemory({
+    userId,
+    memoryType: "conversation_note",
+    key,
+    value,
+    confirmed: true,
+    confidence: 0.8
+  });
+};
+
+const selectRelevantMemories = (memories: MemoryRecord[], message: string) => {
+  const queryTerms = termsFor(message);
+  const scored = memories.map((memory) => {
+    const memoryTerms = termsFor(`${memory.key} ${memory.value}`);
+    let score = memory.confirmed ? 2 : 0;
+    for (const term of queryTerms) if (memoryTerms.has(term)) score += 3;
+    score += memory.confidence;
+    return { memory, score };
+  });
+  return scored
+    .sort((a, b) => b.score - a.score || b.memory.createdAt.localeCompare(a.memory.createdAt))
+    .filter((item, index) => item.score > 2 || index < 4)
+    .slice(0, 12)
+    .map((item) => item.memory);
+};
+
 const formatHistory = (messages: AssistantMessageRecord[]) => {
   const ordered = [...messages].sort((a, b) => a.createdAt.localeCompare(b.createdAt)).slice(-6);
   if (ordered.length === 0) return "Sin historial.";
@@ -61,12 +108,8 @@ const formatHistory = (messages: AssistantMessageRecord[]) => {
 };
 
 const formatMemories = (memories: MemoryRecord[]) => {
-  const useful = memories
-    .filter((memory) => memory.confirmed || memory.confidence >= 0.65)
-    .sort((a, b) => Number(b.confirmed) - Number(a.confirmed) || b.confidence - a.confidence || b.createdAt.localeCompare(a.createdAt))
-    .slice(0, 6);
-  if (useful.length === 0) return "Sin memorias.";
-  return useful.map((memory) => `- ${compactText(memory.key, 60)}: ${compactText(memory.value, 140)}`).join("\n");
+  if (memories.length === 0) return "Sin memorias.";
+  return memories.map((memory) => `- ${compactText(memory.key, 60)}: ${compactText(memory.value, 150)}`).join("\n");
 };
 
 export const buildAssistantContextPrompt = (input: {
@@ -131,6 +174,7 @@ export const handleAssistantMessage = async (
     role: "user",
     content: input.message
   });
+  await persistConversationMemory(repository, input.userId, input.message);
 
   const memoryInstruction = extractMemoryInstruction(input.message);
   if (memoryInstruction) {
@@ -291,7 +335,7 @@ export const handleAssistantMessage = async (
   const contextInput: Parameters<typeof buildAssistantContextPrompt>[0] = {
     message: input.message,
     history,
-    memories
+    memories: selectRelevantMemories(memories, input.message)
   };
   if (input.timezone) contextInput.timezone = input.timezone;
   const generated = await aiGateway.generateText({

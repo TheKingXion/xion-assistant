@@ -14,7 +14,7 @@ describe("command registry", () => {
     ["pon alarma a las 6:45", "alarm.create", { time: "06:45" }],
     ["despiertame a las 7", "alarm.create", { time: "07:00" }],
     ["pon alarma a las seis cuarenta y cinco", "alarm.create", { time: "06:45" }],
-    ["recuerdame tomar agua a las 3", "reminder.create", { title: "tomar agua", time: "03:00" }],
+    ["recuerdame tomar agua a las 3", "reminder.create", { title: "tomar agua", time: "15:00" }],
     ["busca tutoriales de React en YouTube", "youtube.search", { query: "tutoriales de react" }]
   ])("matches %s", async (text, command, params) => {
     const match = await matchCommand(new InMemoryRepository(), { userId: "user-a", text, timezone, now });
@@ -67,6 +67,17 @@ describe("command registry", () => {
     expect(routed.kind).toBe("resolved");
     expect((await repository.listReminders("user-a"))[0]?.title).toBe("tomar agua");
     expect(await repository.listReminders("user-b")).toHaveLength(0);
+  });
+
+  it("resolves ambiguous afternoon hours from the current timezone", async () => {
+    const match = await matchCommand(new InMemoryRepository(), {
+      userId: "user-a",
+      text: "a las 2 acaba mi break recuerdamelo",
+      timezone,
+      now: new Date("2026-06-28T16:00:00Z")
+    });
+    expect(match.command?.name).toBe("reminder.create");
+    expect(match.params.time).toBe("14:00");
   });
 
   it("prepares communication behind confirmation", async () => {
