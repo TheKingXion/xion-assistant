@@ -848,23 +848,14 @@ function playAudio(base64: string, format: "mp3" | "wav" | "opus") {
 
 async function speakReply(api: ApiClient, userId: string, text: string, notify: (message: string) => void) {
   const settings = readStorage<VoiceSettings>(`xion_voice_settings:${userId}`) ?? defaultVoiceSettings(userId);
-  const voiceText = text.length > 700 ? `${text.slice(0, 680).trim()}. Puedo ampliar si quieres.` : text;
   try {
-    const audioRequest = api.post<{ audio_base64?: string; format: "mp3" | "wav" | "opus" }>("/api/voice/speak", {
-      text: voiceText,
+    const audio = await api.post<{ audio_base64?: string; format: "mp3" | "wav" | "opus" }>("/api/voice/speak", {
+      text,
       user_id: userId,
       voice_id: settings.selectedVoiceId,
       language: settings.language,
       speed: settings.speed
     });
-    const audio = await Promise.race([
-      audioRequest,
-      new Promise<"timeout">((resolve) => window.setTimeout(() => resolve("timeout"), 2500))
-    ]);
-    if (audio === "timeout") {
-      speakWithBrowser(voiceText, settings.language, settings.speed, notify);
-      return;
-    }
     if (audio.audio_base64) {
       playAudio(audio.audio_base64, audio.format);
       return;
@@ -873,7 +864,7 @@ async function speakReply(api: ApiClient, userId: string, text: string, notify: 
     // Browser TTS fallback keeps replies audible without another AI token path.
   }
 
-  speakWithBrowser(voiceText, settings.language, settings.speed, notify);
+  speakWithBrowser(text, settings.language, settings.speed, notify);
 }
 
 function speakWithBrowser(text: string, language: string, speed: number, notify?: (message: string) => void) {

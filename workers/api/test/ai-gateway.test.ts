@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createAiGateway } from "../src/services/ai-gateway";
+import { createAiGateway, normalizeTranscriptText } from "../src/services/ai-gateway";
 
 describe("google ai gateway", () => {
   it("uses Google generateContent API when configured", async () => {
@@ -11,7 +11,7 @@ describe("google ai gateway", () => {
       expect(prompt).toContain("Hola");
       expect(prompt).toContain("claro, directo y completo");
       expect(prompt).not.toContain("Maximo 3 frases");
-      expect(body.generationConfig.maxOutputTokens).toBe(420);
+      expect(body.generationConfig.maxOutputTokens).toBe(900);
       return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: "Respuesta real" }] } }] }), {
         status: 200,
         headers: { "content-type": "application/json" }
@@ -29,5 +29,11 @@ describe("google ai gateway", () => {
     expect(result.text).toBe("Respuesta real");
     expect(result.usage.provider).toBe("google");
     expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("normalizes common Heppi transcription mistakes", () => {
+    expect(normalizeTranscriptText("los tokens de GPI se reinician")).toContain("Heppi");
+    expect(normalizeTranscriptText("abre Kevin")).toBe("abre Heppi");
+    expect(normalizeTranscriptText("cuenta de heavy")).toBe("cuenta de Heppi");
   });
 });

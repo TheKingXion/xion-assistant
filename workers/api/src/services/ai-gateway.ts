@@ -25,7 +25,7 @@ export type AiGateway = {
 };
 
 const estimateTokens = (text: string) => Math.max(1, Math.ceil(text.length / 4));
-const ASSISTANT_MAX_OUTPUT_TOKENS = 420;
+const ASSISTANT_MAX_OUTPUT_TOKENS = 900;
 
 const usage = (config: AiGatewayConfig, input: string, output: string): AiGatewayUsage => ({
   provider: config.provider ?? "mock",
@@ -50,6 +50,14 @@ const safeJson = <T>(text: string, fallback: T): T => {
     return fallback;
   }
 };
+
+export const normalizeTranscriptText = (text: string) =>
+  text
+    .replace(/\b(?:heavy|heavi|jepi|gepi|kevin|gpi)\b/gi, (match) => {
+      const first = match[0] ?? "H";
+      return first === first.toUpperCase() ? "Heppi" : "heppi";
+    })
+    .replace(/\bcuenta de heppi\b/gi, "cuenta de Heppi");
 
 export class GoogleGeminiGateway implements AiGateway {
   constructor(private readonly config: AiGatewayConfig) {}
@@ -83,7 +91,7 @@ export class GoogleGeminiGateway implements AiGateway {
   async generateText(input: { userId: string; prompt: string }) {
     const generated = await this.generate(
       `Eres Xion Assistant. Responde en espanol claro, directo y completo.
-Reglas: no cortes palabras/frases; sin markdown largo; maximo 5 puntos; si falta dato, pide solo ese dato; usa contexto si importa; no inventes; simple=1-2 frases; tecnico=pasos breves; si necesitas mucho detalle, resume y pregunta si amplio.
+Reglas: no cortes palabras/frases; sin markdown largo; maximo 8 puntos; si falta dato, pide solo ese dato; usa contexto si importa; no inventes; simple=1-3 frases; tecnico=pasos breves.
 
 Usuario ${input.userId}:
 ${input.prompt}`,
@@ -154,7 +162,9 @@ export const transcribeAudio = async (
   }
   if (!config.apiKey) throw new Error("google_ai_api_key_required");
   const model = config.sttModel ?? config.smallModel ?? config.model ?? "gemini-2.5-flash";
-  const prompt = `Transcribe este audio en ${input.language ?? "es-CL"}. Devuelve solo el texto transcrito, sin explicaciones.`;
+  const prompt = `Transcribe este audio en ${input.language ?? "es-CL"}.
+Devuelve solo el texto transcrito, sin explicaciones.
+Vocabulario importante: Heppi es un nombre propio. Si el audio suena como "heavy", "Kevin", "GPI", "jepi" o "gepi" y el contexto parece nombre, cuenta o asistente, transcribe "Heppi".`;
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
     method: "POST",
     headers: { "content-type": "application/json", "x-goog-api-key": config.apiKey },
@@ -176,7 +186,7 @@ export const transcribeAudio = async (
   });
   if (!response.ok) throw new Error("google_stt_failed");
   const payload = await response.json();
-  const text = pickText(payload);
+  const text = normalizeTranscriptText(pickText(payload));
   if (!text) throw new Error("google_stt_empty_response");
   return { text, usage: usage({ ...config, model }, input.mimeType, text) };
 };
