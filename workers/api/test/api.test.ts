@@ -175,7 +175,7 @@ describe("xion assistant api", () => {
 
   it("includes recent chat context when generating follow-up replies", async () => {
     const auth = await createAuthenticatedUser("context-user");
-    await app.request(
+    const saved = await app.request(
       "/api/assistant/message",
       {
         method: "POST",
@@ -184,6 +184,12 @@ describe("xion assistant api", () => {
       },
       env
     );
+    const savedJson = (await saved.json()) as any;
+    expect(savedJson.response).toContain("Lo recuerdo");
+
+    const memories = await app.request(`/api/memory?user_id=${auth.userId}`, {}, env);
+    const memoryJson = (await memories.json()) as any;
+    expect(memoryJson.memories.some((item: any) => item.key === "mis tokens" && item.value.includes("3:33"))).toBe(true);
 
     const followUp = await app.request(
       "/api/assistant/message",

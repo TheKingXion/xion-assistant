@@ -17,6 +17,28 @@ const extractWifeAliasMessage = (message: string) => {
   };
 };
 
+const memoryInstructionPatterns = [
+  /^(?:recuerda|aprende|guarda|memoriza)(?:\s+(?:que|esto|este dato(?: de la conversacion)?))?\s*[:,-]?\s+(.+)$/i,
+  /^(?:quiero que recuerdes|quiero que aprendas|necesito que recuerdes)\s+(?:que\s+)?(.+)$/i
+];
+
+const extractMemoryInstruction = (message: string) => {
+  const text = message.replace(/\s+/g, " ").trim();
+  const fact = memoryInstructionPatterns.map((pattern) => text.match(pattern)?.[1]?.trim()).find(Boolean);
+  if (!fact || fact.length < 4) return null;
+  const split = fact.match(/^(.+?)\s+(?:es|son|se llama|se llaman|se reinicia|se reinician|queda|quedan|esta|estan)\s+(.+)$/i);
+  if (split?.[1] && split[2]) {
+    return {
+      key: compactText(split[1].trim(), 80),
+      value: compactText(fact, 240)
+    };
+  }
+  return {
+    key: compactText(fact, 80),
+    value: compactText(fact, 240)
+  };
+};
+
 export const classifyRisk = (toolName: string): RiskLevel => {
   if (toolName.includes("send") || toolName.includes("delete") || toolName.includes("execute")) {
     return "high";
@@ -109,6 +131,40 @@ export const handleAssistantMessage = async (
     role: "user",
     content: input.message
   });
+
+  const memoryInstruction = extractMemoryInstruction(input.message);
+  if (memoryInstruction) {
+    const existing = await repository.resolveMemory(input.userId, memoryInstruction.key);
+    if (existing) {
+      await repository.updateMemory(input.userId, existing.id, {
+        value: memoryInstruction.value,
+        confirmed: true,
+        confidence: 1
+      });
+    } else {
+      await repository.createMemory({
+        userId: input.userId,
+        memoryType: "user_fact",
+        key: memoryInstruction.key,
+        value: memoryInstruction.value,
+        confirmed: true,
+        confidence: 1
+      });
+    }
+    const response = `Lo recuerdo: ${memoryInstruction.value}.`;
+    await repository.createAssistantMessage({
+      userId: input.userId,
+      role: "assistant",
+      content: response
+    });
+    return {
+      ok: true,
+      status: "completed",
+      response,
+      plan: null,
+      audio: await safeSpeak(response)
+    };
+  }
 
   const routed = await routeCommand(repository, {
     userId: input.userId,
