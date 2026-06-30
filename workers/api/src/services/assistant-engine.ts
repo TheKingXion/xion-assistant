@@ -210,10 +210,22 @@ export const handleAssistantMessage = async (
     };
   }
 
+  let preferredIntent: string | undefined;
+  try {
+    const interpretation = await aiGateway.classifyIntent({
+      userId: input.userId,
+      message: input.message
+    });
+    if (interpretation.intent !== "assistant.chat") preferredIntent = interpretation.intent;
+  } catch {
+    // Interpretation improves routing, but command execution and chat fallback must keep working if AI classify is unavailable.
+  }
+
   const routed = await routeCommand(repository, {
     userId: input.userId,
     text: input.message,
-    ...(input.timezone ? { timezone: input.timezone } : {})
+    ...(input.timezone ? { timezone: input.timezone } : {}),
+    ...(preferredIntent ? { preferredIntent } : {})
   });
   if (routed.kind === "resolved") {
     await repository.createAssistantMessage({

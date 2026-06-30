@@ -55,7 +55,7 @@ describe("xion assistant api", () => {
     const json = (await res.json()) as any;
 
     expect(json.ok).toBe(true);
-    expect(json.version).toBe("0.12.2");
+    expect(json.version).toBe("0.12.3");
   });
 
   it("allows bearer API preflight without credentialed CORS", async () => {
@@ -267,8 +267,8 @@ describe("xion assistant api", () => {
     const res = await app.request("/api/updates/latest?platform=android&channel=stable", {}, env);
     const json = (await res.json()) as any;
 
-    expect(json.manifest.version).toBe("0.12.2");
-    expect(json.manifest.download_url).toBe("http://localhost:8787/releases/mobile/android/xion-assistant-0.12.2.apk");
+    expect(json.manifest.version).toBe("0.12.3");
+    expect(json.manifest.download_url).toBe("http://localhost:8787/releases/mobile/android/xion-assistant-0.12.3.apk");
   });
 
   it("blocks admin endpoints for non-admin users", async () => {

@@ -38,13 +38,30 @@ describe("command registry", () => {
     expect(userC.missingParams).toContain("time");
   });
 
-  it("does not call AI for high confidence command", async () => {
+  it("uses AI interpretation before executing a high confidence command", async () => {
     const repository = new InMemoryRepository();
     const gateway = new MockAiGateway();
     const classify = vi.spyOn(gateway, "classifyIntent");
+    const generate = vi.spyOn(gateway, "generateText");
     const result = await handleAssistantMessage(repository, gateway, { userId: "user-a", message: "pon alarma a las 6:45", spokenResponse: false });
     expect(result.status).toBe("completed");
-    expect(classify).not.toHaveBeenCalled();
+    expect(classify).toHaveBeenCalledOnce();
+    expect(generate).not.toHaveBeenCalled();
+  });
+
+  it("routes through the interpreted command before generic text patterns", async () => {
+    const repository = new InMemoryRepository();
+    const gateway = new MockAiGateway();
+    vi.spyOn(gateway, "classifyIntent").mockResolvedValue({
+      intent: "youtube.search",
+      riskLevel: "low",
+      entities: { query: "musica" },
+      requiresClarification: false,
+      usage: { provider: "mock", model: "mock-assistant", tokensInput: 1, tokensOutput: 1, estimatedCostUsd: 0 }
+    });
+    const result = await handleAssistantMessage(repository, gateway, { userId: "user-a", message: "pon musica en youtube", spokenResponse: false });
+    expect("command" in result ? result.command : null).toBe("youtube.search");
+    expect(result.response).toContain("https://www.youtube.com/results");
   });
 
   it("uses AI fallback for low confidence input", async () => {

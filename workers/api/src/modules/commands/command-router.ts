@@ -12,12 +12,18 @@ const validTimezone = (value: string) => {
   try { new Intl.DateTimeFormat("en", { timeZone: value }).format(); return true; } catch { return false; }
 };
 
-export const routeCommand = async (repository: Repository, input: { userId: string; text: string; timezone?: string; now?: Date }) => {
+export const routeCommand = async (repository: Repository, input: { userId: string; text: string; timezone?: string; now?: Date; preferredIntent?: string }) => {
   const requestedTimezone = input.timezone && validTimezone(input.timezone) ? input.timezone : undefined;
   if (requestedTimezone) await repository.setUserSetting(input.userId, "timezone", requestedTimezone);
   const timezone = requestedTimezone ?? await repository.getUserSetting(input.userId, "timezone") ?? "America/Santiago";
   if (!(await repository.getUserSetting(input.userId, "timezone"))) await repository.setUserSetting(input.userId, "timezone", timezone);
-  const match = await matchCommand(repository, { userId: input.userId, text: input.text, timezone, ...(input.now ? { now: input.now } : {}) });
+  const match = await matchCommand(repository, {
+    userId: input.userId,
+    text: input.text,
+    timezone,
+    ...(input.now ? { now: input.now } : {}),
+    ...(input.preferredIntent ? { preferredIntent: input.preferredIntent } : {})
+  });
   if (match.matched) match.params.timezone = timezone;
 
   if (!match.matched || !match.command || match.confidence < MEDIUM_CONFIDENCE) {

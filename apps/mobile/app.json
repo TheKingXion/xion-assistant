@@ -2,7 +2,7 @@
   "expo": {
     "name": "Xion Assistant",
     "slug": "xion-assistant",
-    "version": "0.12.2",
+    "version": "0.12.3",
     "orientation": "portrait",
     "scheme": "xionassistant",
     "userInterfaceStyle": "dark",
