@@ -10,7 +10,6 @@ jobs:
   build-android:
     runs-on: ubuntu-latest
     env:
-      NODE_ENV: production
       PNPM_CONFIG_NODE_LINKER: hoisted
       R2_BUCKET_NAME: ${{ vars.R2_BUCKET_NAME }}
       PUBLIC_API_URL: ${{ vars.PUBLIC_API_URL }}
@@ -51,6 +50,8 @@ jobs:
           } >> apps/mobile/android/gradle.properties
       - run: node scripts/patch-expo-android-signing.mjs
       - run: pnpm --filter @xion-assistant/mobile build:android:release
+        env:
+          NODE_ENV: production
       - name: Prepare Android release files
         run: |
           mkdir -p dist/releases/mobile/android

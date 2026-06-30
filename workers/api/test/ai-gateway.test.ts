@@ -6,7 +6,12 @@ describe("google ai gateway", () => {
     const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
       expect(url).toContain("/v1beta/models/gemini-2.5-flash:generateContent");
       expect(new Headers(init?.headers).get("x-goog-api-key")).toBe("secret-key");
-      expect(JSON.parse(String(init?.body)).contents[0].parts[0].text).toContain("Hola");
+      const body = JSON.parse(String(init?.body));
+      const prompt = body.contents[0].parts[0].text as string;
+      expect(prompt).toContain("Hola");
+      expect(prompt).toContain("claro, directo y completo");
+      expect(prompt).not.toContain("Maximo 3 frases");
+      expect(body.generationConfig.maxOutputTokens).toBe(560);
       return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: "Respuesta real" }] } }] }), {
         status: 200,
         headers: { "content-type": "application/json" }

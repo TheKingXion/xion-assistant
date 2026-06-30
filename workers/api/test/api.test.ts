@@ -55,7 +55,7 @@ describe("xion assistant api", () => {
     const json = (await res.json()) as any;
 
     expect(json.ok).toBe(true);
-    expect(json.version).toBe("0.12.0");
+    expect(json.version).toBe("0.12.2");
   });
 
   it("allows bearer API preflight without credentialed CORS", async () => {
@@ -173,6 +173,32 @@ describe("xion assistant api", () => {
     expect(json.messages[0].content).toBe("Hola Xion");
   });
 
+  it("includes recent chat context when generating follow-up replies", async () => {
+    const auth = await createAuthenticatedUser("context-user");
+    await app.request(
+      "/api/assistant/message",
+      {
+        method: "POST",
+        body: JSON.stringify({ message: "Recuerda este dato de la conversacion: mis tokens se reinician a las 3:33", spokenResponse: false }),
+        headers: { "content-type": "application/json", authorization: auth.authorization }
+      },
+      env
+    );
+
+    const followUp = await app.request(
+      "/api/assistant/message",
+      {
+        method: "POST",
+        body: JSON.stringify({ message: "A que hora se reinician?", spokenResponse: false }),
+        headers: { "content-type": "application/json", authorization: auth.authorization }
+      },
+      env
+    );
+    const json = (await followUp.json()) as any;
+
+    expect(json.response).toContain("3:33");
+  });
+
   it("transcribes mobile audio with authenticated mock STT", async () => {
     const auth = await createAuthenticatedUser("stt-user");
     const res = await app.request(
@@ -195,8 +221,8 @@ describe("xion assistant api", () => {
     const res = await app.request("/api/updates/latest?platform=android&channel=stable", {}, env);
     const json = (await res.json()) as any;
 
-    expect(json.manifest.version).toBe("0.12.0");
-    expect(json.manifest.download_url).toBe("http://localhost:8787/releases/mobile/android/xion-assistant-0.12.0.apk");
+    expect(json.manifest.version).toBe("0.12.2");
+    expect(json.manifest.download_url).toBe("http://localhost:8787/releases/mobile/android/xion-assistant-0.12.2.apk");
   });
 
   it("blocks admin endpoints for non-admin users", async () => {

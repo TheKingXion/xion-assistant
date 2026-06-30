@@ -4,6 +4,7 @@ import { synthesizeSpeechAsync } from "@xion-assistant/voice";
 import type { AiGateway } from "./ai-gateway";
 import { prepareCommunication } from "./communication-router";
 import type { Repository } from "./repositories";
+import type { AssistantMessageRecord, MemoryRecord } from "../types";
 import { routeCommand } from "../modules/commands/command-router";
 
 const extractWifeAliasMessage = (message: string) => {
@@ -25,6 +26,45 @@ export const classifyRisk = (toolName: string): RiskLevel => {
   }
   return "low";
 };
+
+const compactText = (value: string, maxLength = 220) => {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  return normalized.length > maxLength ? `${normalized.slice(0, maxLength - 3).trim()}...` : normalized;
+};
+
+const formatHistory = (messages: AssistantMessageRecord[]) => {
+  const ordered = [...messages].sort((a, b) => a.createdAt.localeCompare(b.createdAt)).slice(-6);
+  if (ordered.length === 0) return "Sin historial.";
+  return ordered.map((message) => `${message.role}: ${compactText(message.content)}`).join("\n");
+};
+
+const formatMemories = (memories: MemoryRecord[]) => {
+  const useful = memories
+    .filter((memory) => memory.confirmed || memory.confidence >= 0.65)
+    .sort((a, b) => Number(b.confirmed) - Number(a.confirmed) || b.confidence - a.confidence || b.createdAt.localeCompare(a.createdAt))
+    .slice(0, 6);
+  if (useful.length === 0) return "Sin memorias.";
+  return useful.map((memory) => `- ${compactText(memory.key, 60)}: ${compactText(memory.value, 140)}`).join("\n");
+};
+
+export const buildAssistantContextPrompt = (input: {
+  message: string;
+  history: AssistantMessageRecord[];
+  memories: MemoryRecord[];
+  timezone?: string;
+}) => `Contexto:
+TZ: ${input.timezone ?? "desconocida"}
+
+Memorias:
+${formatMemories(input.memories)}
+
+Historial:
+${formatHistory(input.history)}
+
+Usuario:
+${input.message}
+
+Responde al mensaje actual.`;
 
 export const handleAssistantMessage = async (
   repository: Repository,
@@ -188,9 +228,19 @@ export const handleAssistantMessage = async (
     };
   }
 
+  const [history, memories] = await Promise.all([
+    repository.listAssistantMessages(input.userId, 6),
+    repository.listMemoriesForUser(input.userId)
+  ]);
+  const contextInput: Parameters<typeof buildAssistantContextPrompt>[0] = {
+    message: input.message,
+    history,
+    memories
+  };
+  if (input.timezone) contextInput.timezone = input.timezone;
   const generated = await aiGateway.generateText({
     userId: input.userId,
-    prompt: input.message
+    prompt: buildAssistantContextPrompt(contextInput)
   });
   const response = generated.text;
   await repository.createAssistantMessage({

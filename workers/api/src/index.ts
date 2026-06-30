@@ -54,7 +54,7 @@ app.get("/api/health", (c) =>
   c.json({
     ok: true,
     name: "xion-assistant-api",
-    version: "0.12.0",
+    version: "0.12.2",
     routes: {
       web: c.env.PUBLIC_WEB_URL,
       api: c.env.PUBLIC_API_URL
@@ -62,7 +62,7 @@ app.get("/api/health", (c) =>
   })
 );
 
-const RELEASE_VERSION = "0.12.0";
+const RELEASE_VERSION = "0.12.2";
 
 const releaseContentType = (path: string) => {
   if (path.endsWith(".apk")) return "application/vnd.android.package-archive";

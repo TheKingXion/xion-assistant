@@ -38,7 +38,7 @@ import {
 import "./styles.css";
 
 const API_URL = import.meta.env.VITE_PUBLIC_API_URL ?? "http://localhost:8787";
-const VERSION = "0.12.0";
+const VERSION = "0.12.2";
 
 type AuthState = { token: string; user: { id: string; email: string; displayName: string; isAdmin: boolean } };
 type View = "dashboard" | "assistant" | "memory" | "contacts" | "voice" | "commands" | "connectors" | "updates" | "settings";

@@ -25,6 +25,7 @@ export type AiGateway = {
 };
 
 const estimateTokens = (text: string) => Math.max(1, Math.ceil(text.length / 4));
+const ASSISTANT_MAX_OUTPUT_TOKENS = 560;
 
 const usage = (config: AiGatewayConfig, input: string, output: string): AiGatewayUsage => ({
   provider: config.provider ?? "mock",
@@ -80,7 +81,14 @@ export class GoogleGeminiGateway implements AiGateway {
   }
 
   async generateText(input: { userId: string; prompt: string }) {
-    const generated = await this.generate(`Responde breve en espanol chileno. Maximo 3 frases. No crees planes salvo que pidan accion.\nUsuario ${input.userId}: ${input.prompt}`, { maxOutputTokens: 180 });
+    const generated = await this.generate(
+      `Eres Xion Assistant. Responde en espanol claro, directo y completo.
+Reglas: no cortes palabras/frases; no jerga ni muletillas; usa contexto si importa; si falta dato, dilo y pide solo ese dato; no inventes; simple=1-3 frases, tecnico=pasos breves; no planes salvo pedido.
+
+Usuario ${input.userId}:
+${input.prompt}`,
+      { maxOutputTokens: ASSISTANT_MAX_OUTPUT_TOKENS }
+    );
     return { text: generated.text, usage: usage({ ...this.config, model: generated.model }, input.prompt, generated.text) };
   }
 
