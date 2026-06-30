@@ -229,26 +229,26 @@ Workers & Pages > xion-assistant-api > Settings > Variables and Secrets
 Agregar como variables:
 
 ```env
-PUBLIC_WEB_URL=https://assistant.xion.<TU_DOMINIO>
-PUBLIC_API_URL=https://api.asst.xion.<TU_DOMINIO>
-AI_PROVIDER=mock
-AI_MODEL=mock-assistant
-AI_TTS_PROVIDER=mock
-AI_TTS_DEFAULT_VOICE=xion_voice_1
-AI_TTS_DEFAULT_LANGUAGE=es-CL
-AI_TTS_DEFAULT_SPEED=1
+PUBLIC_WEB_URL=https://assistant.xion.<TU_DOMINIO> # Listo v0.10.3
+PUBLIC_API_URL=https://api.asst.xion.<TU_DOMINIO> # Listo v0.10.3
+AI_PROVIDER=mock # Listo v0.10.3
+AI_MODEL=mock-assistant # Listo v0.10.3
+AI_TTS_PROVIDER=mock # Listo v0.10.3
+AI_TTS_DEFAULT_VOICE=xion_voice_1 # Listo v0.10.3
+AI_TTS_DEFAULT_LANGUAGE=es-CL # Listo v0.10.3
+AI_TTS_DEFAULT_SPEED=1 # Listo v0.10.3
 ```
 
 Agregar como secrets:
 
 ```env
-JWT_SECRET=secret_largo_random
-TOKEN_ENCRYPTION_KEY=secret_largo_random_distinto
-AI_API_KEY=solo_si_usas_proveedor_real
-GOOGLE_CLIENT_ID=cuando_actives_google
-GOOGLE_CLIENT_SECRET=cuando_actives_google
-SPOTIFY_CLIENT_ID=cuando_actives_spotify
-SPOTIFY_CLIENT_SECRET=cuando_actives_spotify
+JWT_SECRET=secret_largo_random # Listo v0.10.3
+TOKEN_ENCRYPTION_KEY=secret_largo_random_distinto # Listo v0.10.3
+AI_API_KEY=solo_si_usas_proveedor_real # Pendiente
+GOOGLE_CLIENT_ID=cuando_actives_google # Pendiente
+GOOGLE_CLIENT_SECRET=cuando_actives_google # Pendiente
+SPOTIFY_CLIENT_ID=cuando_actives_spotify # Pendiente
+SPOTIFY_CLIENT_SECRET=cuando_actives_spotify # Pendiente
 ```
 
 Generar secretos seguros en PowerShell:
