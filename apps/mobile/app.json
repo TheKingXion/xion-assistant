@@ -2,14 +2,14 @@
   "expo": {
     "name": "Xion Assistant",
     "slug": "xion-assistant",
-    "version": "0.12.1",
+    "version": "0.12.2",
     "orientation": "portrait",
     "scheme": "xionassistant",
     "userInterfaceStyle": "dark",
     "assetBundlePatterns": ["**/*"],
     "android": {
       "package": "com.xionscripts.assistant",
-      "versionCode": 13,
+      "versionCode": 14,
       "permissions": ["RECORD_AUDIO", "INTERNET"]
     },
     "plugins": [
