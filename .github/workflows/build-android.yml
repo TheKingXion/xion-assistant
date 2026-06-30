@@ -10,6 +10,8 @@ jobs:
   build-android:
     runs-on: ubuntu-latest
     env:
+      NODE_ENV: production
+      PNPM_CONFIG_NODE_LINKER: hoisted
       R2_BUCKET_NAME: ${{ vars.R2_BUCKET_NAME }}
       PUBLIC_API_URL: ${{ vars.PUBLIC_API_URL }}
       EXPO_PUBLIC_API_URL: ${{ vars.PUBLIC_API_URL }}
