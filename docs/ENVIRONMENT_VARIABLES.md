@@ -7,15 +7,15 @@
 | `VITE_PUBLIC_API_URL` | Yes web | Pages, local | `http://localhost:8787` | Browser API target. |
 | `JWT_SECRET` | Yes | Worker secret | `change-me-32-plus-chars` | Session signing secret. |
 | `TOKEN_ENCRYPTION_KEY` | Yes | Worker secret | `change-me-32-plus-chars` | OAuth token encryption key. |
-| `AI_PROVIDER` | Yes | Worker | `mock` | AI provider name. |
-| `AI_API_KEY` | Later | Worker secret | empty in v0.0.1 | Provider API key, never frontend. |
-| `AI_MODEL` | Yes | Worker | `mock-assistant` | Main model. |
-| `AI_SMALL_MODEL` | Optional | Worker | `mock-small` | Cheap classifier model. |
+| `AI_PROVIDER` | Yes | Worker | `google` | AI provider name. Use `mock` for tests. |
+| `AI_API_KEY` | Yes for google | Worker secret | hidden | Provider API key, never frontend. |
+| `AI_MODEL` | Yes | Worker | `gemini-2.5-flash` | Main model. |
+| `AI_SMALL_MODEL` | Optional | Worker | `gemini-2.5-flash` | Classifier/planning model. |
 | `AI_VISION_MODEL` | Optional | Worker | `mock-vision` | Future vision model. |
-| `AI_STT_MODEL` | Optional | Worker | `mock-stt` | STT model. |
-| `AI_TTS_MODEL` | Optional | Worker | `mock-tts` | TTS model. |
-| `AI_TTS_PROVIDER` | Yes | Worker | `mock` | TTS provider. |
-| `AI_TTS_DEFAULT_VOICE` | Yes | Worker | `xion_voice_1` | Default voice id. |
+| `AI_STT_MODEL` | Optional | Worker | `gemini-2.5-flash` | STT model. STT endpoint still pending real implementation. |
+| `AI_TTS_MODEL` | Optional | Worker | `gemini-2.5-flash-preview-tts` | TTS model. |
+| `AI_TTS_PROVIDER` | Yes | Worker | `google` | TTS provider. Use `mock` for tests. |
+| `AI_TTS_DEFAULT_VOICE` | Yes | Worker | `Kore` | Default voice id. |
 | `AI_TTS_DEFAULT_LANGUAGE` | Yes | Worker | `es-CL` | Default language. |
 | `AI_TTS_DEFAULT_SPEED` | Yes | Worker | `1` | Default speed. |
 | `CLOUDFLARE_API_TOKEN` | Deploy | GitHub secret | hidden | Deploy token. |

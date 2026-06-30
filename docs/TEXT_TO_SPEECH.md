@@ -1,6 +1,6 @@
 # Text To Speech
 
-Provider in `v0.0.1`: `mock`.
+Providers in `v0.11.0`: `mock` and Google Gemini TTS.
 
 ## Variables
 
@@ -10,24 +10,31 @@ Provider in `v0.0.1`: `mock`.
 - `AI_TTS_DEFAULT_LANGUAGE`
 - `AI_TTS_DEFAULT_SPEED`
 
+Google Worker example:
+
+```env
+AI_TTS_PROVIDER=google
+AI_TTS_MODEL=gemini-2.5-flash-preview-tts
+AI_TTS_DEFAULT_VOICE=Kore
+AI_TTS_DEFAULT_LANGUAGE=es-CL
+AI_TTS_DEFAULT_SPEED=1
+```
+
 ## Voices
 
 - `xion_voice_1`: Spanish Chile neutral mock.
 - `xion_voice_2`: Spanish Spain warm mock.
-
-## Test Voice
-
-```bash
-curl http://localhost:8787/api/voice/voices
-```
+- `Kore`: Google Gemini TTS voice.
 
 ## Generate Audio
 
-```bash
-curl -X POST http://localhost:8787/api/voice/speak \
-  -H "content-type: application/json" \
-  -d "{\"text\":\"Hola\",\"user_id\":\"user-a\",\"voice_id\":\"xion_voice_1\"}"
+Frontend calls Worker endpoint:
+
+```text
+POST /api/voice/speak
 ```
+
+Worker calls Google Gemini TTS with the Interactions API when `AI_TTS_PROVIDER=google`.
 
 ## Cache And R2
 
@@ -39,8 +46,8 @@ Speed, pitch, language and volume live in `voice_settings`.
 
 ## Costs
 
-Mock provider costs zero. Real provider cost must be documented before enabling.
+Mock provider costs zero. Google cost depends on Gemini billing and must be monitored before wider use.
 
 ## Limits
 
-Mock audio is base64 placeholder, not real speech.
+Google TTS returns PCM audio. Worker wraps it as WAV base64 so browser playback can use `data:audio/wav;base64,...`.

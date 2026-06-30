@@ -1,6 +1,6 @@
 import type { RiskLevel } from "@xion-assistant/shared";
 import { mustConfirm } from "@xion-assistant/shared";
-import { synthesizeSpeech } from "@xion-assistant/voice";
+import { synthesizeSpeechAsync } from "@xion-assistant/voice";
 import type { AiGateway } from "./ai-gateway";
 import { prepareCommunication } from "./communication-router";
 import type { Repository } from "./repositories";
@@ -35,8 +35,28 @@ export const handleAssistantMessage = async (
     spokenResponse: boolean;
     platform?: "web" | "windows" | "android" | "ios" | "unknown";
     timezone?: string;
+    voice?: {
+      provider?: string | undefined;
+      apiKey?: string | undefined;
+      model?: string | undefined;
+      defaultVoice?: string;
+      defaultLanguage?: string;
+      defaultSpeed?: number;
+    };
   }
 ) => {
+  const speak = (text: string) =>
+    synthesizeSpeechAsync({
+      text,
+      userId: input.userId,
+      voiceId: input.voice?.defaultVoice ?? "xion_voice_1",
+      language: input.voice?.defaultLanguage ?? "es-CL",
+      speed: input.voice?.defaultSpeed ?? 1,
+      provider: input.voice?.provider,
+      apiKey: input.voice?.apiKey,
+      model: input.voice?.model
+    });
+
   const routed = await routeCommand(repository, {
     userId: input.userId,
     text: input.message,
@@ -46,7 +66,7 @@ export const handleAssistantMessage = async (
     return {
       ...routed.result,
       audio: input.spokenResponse
-        ? synthesizeSpeech({ text: routed.result.response, userId: input.userId, voiceId: "xion_voice_1", language: "es-CL", speed: 1 })
+        ? await speak(routed.result.response)
         : null
     };
   }
@@ -148,23 +168,21 @@ export const handleAssistantMessage = async (
         }))
       },
       audio: input.spokenResponse
-        ? synthesizeSpeech({
-            text: response,
-            userId: input.userId,
-            voiceId: "xion_voice_1",
-            language: "es-CL",
-            speed: 1
-          })
+        ? await speak(response)
         : null
     };
   }
 
-  const response = "Xion Assistant base activo. Puedo gestionar memoria, voz, planes y updates.";
   const aiPlan = await aiGateway.createActionPlan({
     userId: input.userId,
     goal: input.message,
     riskLevel: intent.riskLevel
   });
+  const generated = await aiGateway.generateText({
+    userId: input.userId,
+    prompt: `Responde como Xion Assistant. Mensaje: ${input.message}`
+  });
+  const response = generated.text;
   return {
     ok: true,
     status: "completed",
@@ -181,13 +199,7 @@ export const handleAssistantMessage = async (
       }))
     },
     audio: input.spokenResponse
-      ? synthesizeSpeech({
-          text: response,
-          userId: input.userId,
-          voiceId: "xion_voice_1",
-          language: "es-CL",
-          speed: 1
-        })
+      ? await speak(response)
       : null
   };
 };

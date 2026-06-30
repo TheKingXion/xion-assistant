@@ -2,12 +2,6 @@ name: Deploy API
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - "workers/api/**"
-      - "packages/**"
-      - "pnpm-lock.yaml"
 
 jobs:
   deploy-api:

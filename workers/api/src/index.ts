@@ -1,6 +1,6 @@
 import { zValidator } from "@hono/zod-validator";
 import { assistantRequestSchema, commandMatchSchema, commandShortcutSchema, updateManifestSchema, voiceSettingsSchema } from "@xion-assistant/shared";
-import { listVoices, synthesizeSpeech } from "@xion-assistant/voice";
+import { listVoices, synthesizeSpeechAsync } from "@xion-assistant/voice";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { z } from "zod";
@@ -31,6 +31,15 @@ const aiConfigFromEnv = (env: Env): AiGatewayConfig => {
   return config;
 };
 
+const voiceConfigFromEnv = (env: Env) => ({
+  provider: env.AI_TTS_PROVIDER,
+  apiKey: env.AI_API_KEY,
+  model: env.AI_TTS_MODEL,
+  defaultVoice: env.AI_TTS_DEFAULT_VOICE ?? "xion_voice_1",
+  defaultLanguage: env.AI_TTS_DEFAULT_LANGUAGE ?? "es-CL",
+  defaultSpeed: Number(env.AI_TTS_DEFAULT_SPEED ?? "1")
+});
+
 app.use(
   "*",
   cors({
@@ -44,7 +53,7 @@ app.get("/api/health", (c) =>
   c.json({
     ok: true,
     name: "xion-assistant-api",
-    version: "0.10.7",
+    version: "0.11.0",
     routes: {
       web: c.env.PUBLIC_WEB_URL,
       api: c.env.PUBLIC_API_URL
@@ -573,6 +582,7 @@ app.post("/api/assistant/message", zValidator("json", assistantRequestSchema), a
     message: body.message,
     spokenResponse: body.spokenResponse,
     platform: body.platform,
+    voice: voiceConfigFromEnv(c.env),
     ...(body.timezone ? { timezone: body.timezone } : {})
   };
   return c.json(await handleAssistantMessage(repository, aiGateway, input));
@@ -767,17 +777,20 @@ app.post(
       speed: z.number().min(0.5).max(2).default(1)
     })
   ),
-  (c) => {
+  async (c) => {
     const body = c.req.valid("json");
     return c.json({
       ok: true,
-      ...synthesizeSpeech({
+      ...(await synthesizeSpeechAsync({
         text: body.text,
         userId: body.user_id,
         voiceId: body.voice_id,
         language: body.language,
-        speed: body.speed
-      })
+        speed: body.speed,
+        provider: c.env.AI_TTS_PROVIDER,
+        apiKey: c.env.AI_API_KEY,
+        model: c.env.AI_TTS_MODEL
+      }))
     });
   }
 );
