@@ -113,6 +113,13 @@
 - Future multi-Worker topology documented for API, Voice and Releases.
 - D1 `database_id` format corrected to raw UUID without placeholder brackets.
 
+## v0.10.3
+
+- Removed duplicate Worker variable sections from Cloudflare docs.
+- Removed placeholder `[[routes]]` and production placeholder vars from `wrangler.toml`.
+- Documented Dashboard custom domain setup to prevent `<TU_DOMINIO>` deploy failures.
+- Added `.dev.vars.example` for local Worker development variables.
+
 ## v0.2.0
 
 - Google OAuth.

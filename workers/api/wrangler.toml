@@ -7,16 +7,6 @@ compatibility_flags = ["nodejs_compat"]
 host = "localhost"
 port = 8787
 
-[vars]
-PUBLIC_WEB_URL = "https://assistant.xion.<TU_DOMINIO>"
-PUBLIC_API_URL = "https://api.asst.xion.<TU_DOMINIO>"
-AI_PROVIDER = "mock"
-AI_MODEL = "mock-assistant"
-AI_TTS_PROVIDER = "mock"
-AI_TTS_DEFAULT_VOICE = "xion_voice_1"
-AI_TTS_DEFAULT_LANGUAGE = "es-CL"
-AI_TTS_DEFAULT_SPEED = "1"
-
 [[d1_databases]]
 binding = "DB"
 database_name = "xion-assistant"
@@ -26,7 +16,3 @@ migrations_dir = "migrations"
 [[r2_buckets]]
 binding = "RELEASES"
 bucket_name = "xion-assistant-releases"
-
-[[routes]]
-pattern = "api.asst.xion.<TU_DOMINIO>/*"
-zone_name = "<TU_DOMINIO>"

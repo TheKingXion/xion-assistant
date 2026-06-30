@@ -1,6 +1,6 @@
 # START FROM ZERO
 
-Estado: `v0.10.2` foundation. Incluye Command Registry autenticado, shortcuts privados, metricas, UI, migracion `0002` y guia Cloudflare cloud-first estilo Xion-TV. Deploy real requiere recursos y secrets Cloudflare.
+Estado: `v0.10.3` foundation. Incluye Command Registry autenticado, shortcuts privados, metricas, UI, migracion `0002` y guia Cloudflare cloud-first corregida para deploy real. Deploy real requiere recursos y secrets Cloudflare.
 
 ## Cloudflare: Worker, Pages, D1 y R2
 
@@ -14,8 +14,10 @@ Regla produccion:
 - `.env` local es solo desarrollo.
 - Secrets productivos se guardan en `Workers & Pages > <proyecto> > Settings > Variables and Secrets`.
 - Variables publicas web se guardan en Pages como `VITE_*`.
-- Si hacen falta 2 o 3 Workers, se crean: API, Voice y Releases pueden separarse.
+- Ahora solo existe y se configura `xion-assistant-api`; Workers extra quedan pendientes.
 - Bindings `DB` y `RELEASES` se configuran como bindings Cloudflare, no como texto en frontend.
+- No dejar `[[routes]]` con `<TU_DOMINIO>` en `wrangler.toml`; eso rompe `wrangler deploy`.
+- Primero despliega `xion-assistant-api`; despues crea Pages `xion-assistant` si aun no existe.
 
 Orden desde dashboard:
 
@@ -47,7 +49,7 @@ pnpm exec wrangler pages project create xion-assistant
 pnpm exec wrangler pages deploy apps/web/dist --project-name xion-assistant
 ```
 
-Copiar ID D1 a `workers/api/wrangler.toml` sin `< >`. Configurar bindings `DB` y `RELEASES`, secrets `JWT_SECRET`/`TOKEN_ENCRYPTION_KEY`, variable Pages `VITE_PUBLIC_API_URL`, dominio Pages `assistant.xion.<TU_DOMINIO>` y ruta Worker `api.asst.xion.<TU_DOMINIO>/*`.
+Copiar ID D1 a `workers/api/wrangler.toml` sin `< >`. Configurar bindings `DB` y `RELEASES`, secrets `JWT_SECRET`/`TOKEN_ENCRYPTION_KEY`, variable Pages `VITE_PUBLIC_API_URL`, dominio Pages `assistant.xion.<TU_DOMINIO>` y custom domain Worker `api.asst.xion.<TU_DOMINIO>` desde Cloudflare Dashboard.
 
 ## Probar Command Registry
 
@@ -202,12 +204,11 @@ No uses:
 
 ## 12. Worker routes
 
-Edita `workers/api/wrangler.toml`:
+No uses placeholder en `workers/api/wrangler.toml`. Configura dominio desde Cloudflare Dashboard:
 
-```toml
-[[routes]]
-pattern = "api.asst.xion.<TU_DOMINIO>/*"
-zone_name = "<TU_DOMINIO>"
+```text
+Workers & Pages > xion-assistant-api > Settings > Domains & Routes > Add custom domain
+api.asst.xion.<TU_DOMINIO>
 ```
 
 ## 13. Cloudflare Pages
@@ -284,7 +285,7 @@ Health:
 curl http://localhost:8787/api/health
 ```
 
-`wrangler.toml` includes `[dev] host = "localhost"` so local dev works even while production routes still use `<TU_DOMINIO>` placeholders.
+`wrangler.toml` includes `[dev] host = "localhost"` so local dev works. Production custom domain is configured from Cloudflare Dashboard, not with placeholder routes in `wrangler.toml`.
 
 ## 20. Web local
 

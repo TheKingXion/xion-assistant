@@ -1,0 +1,10 @@
+PUBLIC_WEB_URL=https://assistant.xion.example.com
+PUBLIC_API_URL=http://localhost:8787
+AI_PROVIDER=mock
+AI_MODEL=mock-assistant
+AI_TTS_PROVIDER=mock
+AI_TTS_DEFAULT_VOICE=xion_voice_1
+AI_TTS_DEFAULT_LANGUAGE=es-CL
+AI_TTS_DEFAULT_SPEED=1
+JWT_SECRET=replace-with-32-plus-character-local-secret
+TOKEN_ENCRYPTION_KEY=replace-with-32-plus-character-local-secret-2

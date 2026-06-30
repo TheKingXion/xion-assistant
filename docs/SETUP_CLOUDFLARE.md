@@ -19,33 +19,19 @@ Produccion corre en Cloudflare. Local solo sirve para desarrollo.
 
 Si una parte necesita su propio Worker, se crea. No se fuerza todo dentro de un solo Worker si eso complica seguridad, deploy o limites.
 
-Topologia actual:
+Estado actual de deploy:
 
 ```text
 Repo GitHub: xion-assistant
-Pages Web/Admin: xion-assistant -> mismo repo, build apps/web
-Worker API: xion-assistant-api -> mismo repo, root workers/api
+Worker API: xion-assistant-api -> creado, mismo repo, root workers/api
 D1: xion-assistant
 R2: xion-assistant-releases
-```
-
-Topologia preparada cuando crezca:
-
-```text
-Repo GitHub: xion-assistant
-Worker API: xion-assistant-api -> mismo repo, root workers/api
-Worker Voice: xion-assistant-voice -> mismo repo, root workers/voice
-Worker Releases: xion-assistant-releases-api -> mismo repo, root workers/releases
-Pages Web/Admin: xion-assistant -> mismo repo, build apps/web
-D1 principal: xion-assistant
-R2 releases: xion-assistant-releases
+Pages Web/Admin: xion-assistant -> crear despues, mismo repo, build apps/web
 ```
 
 Regla:
 
 - Auth, memoria, comandos, OAuth y acciones viven en `xion-assistant-api`.
-- TTS/STT puede moverse a `xion-assistant-voice` si necesita limites, costos o colas separadas.
-- Descargas, checksums y latest manifests pueden moverse a `xion-assistant-releases-api` si R2/update crece.
 - Cada Worker tiene sus propias variables/secrets en Cloudflare.
 - Pages solo recibe variables publicas `VITE_*`.
 - Secrets nunca van a Pages ni al frontend.
@@ -57,13 +43,11 @@ Mapa tipo Xion-TV:
 
 ```text
 Worker API: Workers & Pages > xion-assistant-api > Settings > Variables and Secrets
-Worker Voice futuro: Workers & Pages > xion-assistant-voice > Settings > Variables and Secrets
-Worker Releases futuro: Workers & Pages > xion-assistant-releases-api > Settings > Variables and Secrets
-Pages Web/Admin: Workers & Pages > xion-assistant > Settings > Environment variables
 Bindings API: Workers & Pages > xion-assistant-api > Settings > Bindings
-Bindings Voice futuro: Workers & Pages > xion-assistant-voice > Settings > Bindings
-Bindings Releases futuro: Workers & Pages > xion-assistant-releases-api > Settings > Bindings
+Pages Web/Admin: Workers & Pages > xion-assistant > Settings > Environment variables
 ```
+
+No configures `xion-assistant-voice` ni `xion-assistant-releases-api` ahora. Esos Workers no existen todavia.
 
 ## 1. Subir repo
 
@@ -147,8 +131,8 @@ El bucket queda privado. Descargas deben pasar por Worker o por URLs firmadas cu
 Rutas previstas:
 
 ```text
-desktop/windows/xion-assistant-setup-0.10.2.exe
-mobile/android/xion-assistant-0.10.2.apk
+desktop/windows/xion-assistant-setup-0.10.3.exe
+mobile/android/xion-assistant-0.10.3.apk
 latest/windows.json
 latest/android.json
 checksums/
@@ -218,7 +202,7 @@ Importante:
 - `RELEASES` debe llamarse exactamente `RELEASES`.
 - `database_id` real debe estar en `workers/api/wrangler.toml`.
 
-## 7. Variables y secrets del Worker API
+## 7. Variables, secrets y bindings del Worker API
 
 Ruta:
 
@@ -226,59 +210,9 @@ Ruta:
 Workers & Pages > xion-assistant-api > Settings > Variables and Secrets
 ```
 
-Agregar como variables:
+Este proyecto ya existe: `xion-assistant-api`.
 
-```env
-PUBLIC_WEB_URL=https://assistant.xion.<TU_DOMINIO> # Listo v0.10.3
-PUBLIC_API_URL=https://api.asst.xion.<TU_DOMINIO> # Listo v0.10.3
-AI_PROVIDER=mock # Listo v0.10.3
-AI_MODEL=mock-assistant # Listo v0.10.3
-AI_TTS_PROVIDER=mock # Listo v0.10.3
-AI_TTS_DEFAULT_VOICE=xion_voice_1 # Listo v0.10.3
-AI_TTS_DEFAULT_LANGUAGE=es-CL # Listo v0.10.3
-AI_TTS_DEFAULT_SPEED=1 # Listo v0.10.3
-```
-
-Agregar como secrets:
-
-```env
-JWT_SECRET=secret_largo_random # Listo v0.10.3
-TOKEN_ENCRYPTION_KEY=secret_largo_random_distinto # Listo v0.10.3
-AI_API_KEY=solo_si_usas_proveedor_real # Pendiente
-GOOGLE_CLIENT_ID=cuando_actives_google # Pendiente
-GOOGLE_CLIENT_SECRET=cuando_actives_google # Pendiente
-SPOTIFY_CLIENT_ID=cuando_actives_spotify # Pendiente
-SPOTIFY_CLIENT_SECRET=cuando_actives_spotify # Pendiente
-```
-
-Generar secretos seguros en PowerShell:
-
-```powershell
-[Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(48))
-```
-
-Despues de cambiar variables/secrets:
-
-1. Guardar.
-2. Ir a `Deployments`.
-3. Click `Retry deployment` o hacer nuevo push.
-4. Probar health.
-
-```powershell
-curl https://api.asst.xion.<TU_DOMINIO>/api/health
-```
-
-## 7.1 Variables por proyecto Cloudflare
-
-No pongas todo en el mismo lugar. Cada proyecto lee solo sus propias variables.
-
-### Worker API `xion-assistant-api`
-
-Ruta:
-
-```text
-Workers & Pages > xion-assistant-api > Settings > Variables and Secrets
-```
+Agregar solo aqui las variables del API. No poner estas variables en Pages.
 
 Variables:
 
@@ -298,112 +232,43 @@ Secrets:
 ```env
 JWT_SECRET=secret_largo_random
 TOKEN_ENCRYPTION_KEY=secret_largo_random_distinto
-AI_API_KEY=si_usas_proveedor_real
+```
+
+Secrets pendientes, solo cuando actives proveedor real:
+
+```env
+AI_API_KEY=solo_si_usas_proveedor_real
 GOOGLE_CLIENT_ID=cuando_actives_google
 GOOGLE_CLIENT_SECRET=cuando_actives_google
 SPOTIFY_CLIENT_ID=cuando_actives_spotify
 SPOTIFY_CLIENT_SECRET=cuando_actives_spotify
 ```
 
-Bindings, no variables:
+Bindings del mismo Worker:
 
 ```text
 DB -> D1 xion-assistant
 RELEASES -> R2 xion-assistant-releases
 ```
 
-### Pages `xion-assistant`
+Generar secretos seguros en PowerShell:
 
-Ruta:
-
-```text
-Workers & Pages > xion-assistant > Settings > Environment variables
+```powershell
+[Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(48))
 ```
 
-Production:
+Despues de cambiar variables/secrets/bindings:
 
-```env
-VITE_PUBLIC_API_URL=https://api.asst.xion.<TU_DOMINIO>
-```
-
-Preview, si se usa:
-
-```env
-VITE_PUBLIC_API_URL=https://api-preview.asst.xion.<TU_DOMINIO>
-```
-
-No poner `JWT_SECRET`, `TOKEN_ENCRYPTION_KEY`, `AI_API_KEY`, `GOOGLE_CLIENT_SECRET` ni `SPOTIFY_CLIENT_SECRET` en Pages.
-
-### Worker Voice futuro `xion-assistant-voice`
-
-Crear solo cuando TTS/STT real necesite aislar limites, logs o costos.
-
-Variables:
-
-```env
-PUBLIC_API_URL=https://api.asst.xion.<TU_DOMINIO>
-AI_TTS_PROVIDER=configured-provider
-AI_TTS_MODEL=configured-model
-AI_STT_MODEL=configured-model
-AI_TTS_DEFAULT_VOICE=xion_voice_1
-AI_TTS_DEFAULT_LANGUAGE=es-CL
-```
-
-Secrets:
-
-```env
-AI_API_KEY=secret_del_proveedor
-TOKEN_ENCRYPTION_KEY=secret_largo_random
-```
-
-Bindings posibles:
-
-```text
-DB -> D1 xion-assistant
-VOICE_CACHE -> R2 xion-assistant-voice-cache
-```
-
-### Worker Releases futuro `xion-assistant-releases-api`
-
-Crear solo cuando update/download necesite Worker separado.
-
-Variables:
-
-```env
-PUBLIC_API_URL=https://api.asst.xion.<TU_DOMINIO>
-RELEASES_BASE_PATH=/
-```
-
-Secrets:
-
-```env
-TOKEN_ENCRYPTION_KEY=secret_largo_random
-```
-
-Bindings:
-
-```text
-RELEASES -> R2 xion-assistant-releases
-DB -> D1 xion-assistant
-```
-
-### Cuando cambies variables
-
-Para Worker:
-
-1. Guardar variables/secrets.
-2. Entrar a `Deployments`.
+1. Guardar.
+2. Ir a `Deployments`.
 3. Click `Retry deployment` o hacer nuevo push.
-4. Probar endpoint health.
+4. Probar health.
 
-Para Pages:
+```powershell
+curl https://api.asst.xion.<TU_DOMINIO>/api/health
+```
 
-1. Guardar variable.
-2. Entrar a `Deployments`.
-3. Click `Retry deployment`.
-4. Probar web.
-
-Variables `VITE_*` se leen durante build. Si cambias variable Pages y no redeployas, web puede seguir usando valor viejo.
+Importante: `workers/api/wrangler.toml` no incluye `PUBLIC_WEB_URL`, `PUBLIC_API_URL` ni `[[routes]]` con placeholders. Produccion toma variables y dominio desde Cloudflare Dashboard.
 
 ## 8. Dominio del Worker
 
@@ -420,15 +285,15 @@ api.asst.xion.<TU_DOMINIO>
 
 5. Confirmar DNS.
 
-Alternativa por route en `workers/api/wrangler.toml`:
+No agregues `[[routes]]` con `<TU_DOMINIO>` en `workers/api/wrangler.toml`. Si queda placeholder, deploy falla con:
 
-```toml
-[[routes]]
-pattern = "api.asst.xion.<TU_DOMINIO>/*"
-zone_name = "<TU_DOMINIO>"
+```text
+Could not find zone for `<TU_DOMINIO>`
 ```
 
 ## 9. Crear Pages Web
+
+Tu estado actual: `xion-assistant-api` ya existe. Pages `xion-assistant` todavia no existe si no lo creaste manualmente. Crealo aqui.
 
 En dashboard:
 
@@ -474,6 +339,8 @@ VITE_PUBLIC_API_URL=https://api.asst.xion.<TU_DOMINIO>
 
 Las variables `VITE_*` se leen durante build. Si cambias `VITE_PUBLIC_API_URL` y no redeployas Pages, web puede seguir usando URL antigua.
 
+No poner `JWT_SECRET`, `TOKEN_ENCRYPTION_KEY`, `AI_API_KEY`, `GOOGLE_CLIENT_SECRET` ni `SPOTIFY_CLIENT_SECRET` en Pages.
+
 ## 11. Dominio de Pages
 
 Dentro de Pages `xion-assistant`:
@@ -497,36 +364,15 @@ En GitHub:
 2. Ir a `Settings`.
 3. Abrir `Secrets and variables`.
 4. Abrir `Actions`.
-5. Crear secrets:
+5. Crear solo estos secrets necesarios ahora:
 
 ```text
 CLOUDFLARE_API_TOKEN
 CLOUDFLARE_ACCOUNT_ID
 CLOUDFLARE_D1_DATABASE_ID
-R2_ACCESS_KEY_ID
-R2_SECRET_ACCESS_KEY
 R2_BUCKET_NAME
 JWT_SECRET
 TOKEN_ENCRYPTION_KEY
-GOOGLE_CLIENT_ID
-GOOGLE_CLIENT_SECRET
-SPOTIFY_CLIENT_ID
-SPOTIFY_CLIENT_SECRET
-AI_PROVIDER
-AI_API_KEY
-AI_MODEL
-AI_SMALL_MODEL
-AI_STT_MODEL
-AI_TTS_MODEL
-AI_TTS_PROVIDER
-AI_TTS_DEFAULT_VOICE
-AI_TTS_DEFAULT_LANGUAGE
-AI_TTS_DEFAULT_SPEED
-ANDROID_KEYSTORE_BASE64
-ANDROID_KEYSTORE_PASSWORD
-ANDROID_KEY_ALIAS
-TAURI_PRIVATE_KEY
-TAURI_KEY_PASSWORD
 PUBLIC_WEB_URL
 PUBLIC_API_URL
 ```
@@ -537,6 +383,26 @@ Valores:
 R2_BUCKET_NAME=xion-assistant-releases
 PUBLIC_WEB_URL=https://assistant.xion.<TU_DOMINIO>
 PUBLIC_API_URL=https://api.asst.xion.<TU_DOMINIO>
+```
+
+Pendientes para fases futuras. No crearlos ahora si no estas usando esos conectores/builds:
+
+```text
+R2_ACCESS_KEY_ID
+R2_SECRET_ACCESS_KEY
+GOOGLE_CLIENT_ID
+GOOGLE_CLIENT_SECRET
+SPOTIFY_CLIENT_ID
+SPOTIFY_CLIENT_SECRET
+AI_API_KEY
+AI_SMALL_MODEL
+AI_STT_MODEL
+AI_TTS_MODEL
+ANDROID_KEYSTORE_BASE64
+ANDROID_KEYSTORE_PASSWORD
+ANDROID_KEY_ALIAS
+TAURI_PRIVATE_KEY
+TAURI_KEY_PASSWORD
 ```
 
 Token Cloudflare minimo recomendado:
@@ -719,4 +585,4 @@ pnpm --filter @xion-assistant/api exec wrangler d1 migrations list xion-assistan
 - Releases futuras pasan por checksum antes de publicarse.
 - Variables/secrets productivas viven en Cloudflare Dashboard.
 - Pages solo tiene `VITE_*`; ningun secret vive en frontend.
-- Si Voice/Releases requieren aislarse, crear Workers separados y bindings propios.
+- Workers extra de Voice/Releases quedan pendientes; no configurarlos ahora.

@@ -46,7 +46,7 @@ describe("xion assistant api", () => {
     const json = (await res.json()) as any;
 
     expect(json.ok).toBe(true);
-    expect(json.version).toBe("0.10.0");
+    expect(json.version).toBe("0.10.3");
   });
 
   it("allows bearer API preflight without credentialed CORS", async () => {

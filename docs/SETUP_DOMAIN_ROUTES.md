@@ -27,13 +27,14 @@ api.asst.xion.<TU_DOMINIO>   proxied Worker custom domain
 
 ## Worker Domain
 
-In `workers/api/wrangler.toml`:
+Do not put placeholder routes in `workers/api/wrangler.toml`. Configure the Worker domain from Cloudflare Dashboard after the real zone exists:
 
-```toml
-[[routes]]
-pattern = "api.asst.xion.<TU_DOMINIO>/*"
-zone_name = "<TU_DOMINIO>"
+```text
+Workers & Pages > xion-assistant-api > Settings > Domains & Routes > Add custom domain
+api.asst.xion.<TU_DOMINIO>
 ```
+
+If `[[routes]]` contains `<TU_DOMINIO>`, `wrangler deploy` fails with `Could not find zone for <TU_DOMINIO>`.
 
 ## Pages Domain
 
