@@ -106,6 +106,13 @@
 - D1, R2, Worker, Pages, bindings, secrets, domains, GitHub secrets and validation checklist documented step by step.
 - `START_FROM_ZERO.md` now points to the full dashboard deployment flow.
 
+## v0.10.2
+
+- Cloudflare docs clarified as cloud-first production.
+- Variables/secrets mapped per Cloudflare Worker and Pages project.
+- Future multi-Worker topology documented for API, Voice and Releases.
+- D1 `database_id` format corrected to raw UUID without placeholder brackets.
+
 ## v0.2.0
 
 - Google OAuth.

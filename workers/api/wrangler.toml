@@ -20,7 +20,7 @@ AI_TTS_DEFAULT_SPEED = "1"
 [[d1_databases]]
 binding = "DB"
 database_name = "xion-assistant"
-database_id = "<CLOUDFLARE_D1_DATABASE_ID>"
+database_id = "dde69fd1-0526-4216-897f-8954ce44b8a9"
 migrations_dir = "migrations"
 
 [[r2_buckets]]

@@ -1,10 +1,21 @@
 # START FROM ZERO
 
-Estado: `v0.10.1` foundation. Incluye Command Registry autenticado, shortcuts privados, metricas, UI, migracion `0002` y guia Cloudflare estilo dashboard. Deploy real requiere recursos y secrets Cloudflare.
+Estado: `v0.10.2` foundation. Incluye Command Registry autenticado, shortcuts privados, metricas, UI, migracion `0002` y guia Cloudflare cloud-first estilo Xion-TV. Deploy real requiere recursos y secrets Cloudflare.
 
 ## Cloudflare: Worker, Pages, D1 y R2
 
 Guia completa estilo Xion-TV: `docs/SETUP_CLOUDFLARE.md`.
+
+Regla produccion:
+
+- Todo corre en Cloudflare: Pages, Workers, D1, R2 y variables.
+- Un solo repo GitHub puede alimentar todo: Pages, Worker API y futuros Workers.
+- En Cloudflare conectas el mismo repo varias veces; cambias root/build/domain/bindings por proyecto.
+- `.env` local es solo desarrollo.
+- Secrets productivos se guardan en `Workers & Pages > <proyecto> > Settings > Variables and Secrets`.
+- Variables publicas web se guardan en Pages como `VITE_*`.
+- Si hacen falta 2 o 3 Workers, se crean: API, Voice y Releases pueden separarse.
+- Bindings `DB` y `RELEASES` se configuran como bindings Cloudflare, no como texto en frontend.
 
 Orden desde dashboard:
 
@@ -12,12 +23,12 @@ Orden desde dashboard:
 2. Aplicar migraciones `workers/api/migrations/0001_initial.sql` y `0002_command_registry.sql`.
 3. Crear R2 `xion-assistant-releases`.
 4. Crear Worker `xion-assistant-api`.
-5. Conectar Worker a Git con root `workers/api`.
+5. Conectar Worker al mismo repo GitHub con root `workers/api`.
 6. Crear bindings `DB` y `RELEASES`.
-7. Configurar variables/secrets del Worker.
+7. Configurar variables/secrets del Worker API en Cloudflare.
 8. Asignar dominio Worker `api.asst.xion.<TU_DOMINIO>`.
 9. Crear Pages `xion-assistant`.
-10. Conectar Pages a Git con output `apps/web/dist`.
+10. Conectar Pages al mismo repo GitHub con output `apps/web/dist`.
 11. Configurar `VITE_PUBLIC_API_URL`.
 12. Asignar dominio Pages `assistant.xion.<TU_DOMINIO>`.
 13. Configurar GitHub Secrets.
@@ -36,7 +47,7 @@ pnpm exec wrangler pages project create xion-assistant
 pnpm exec wrangler pages deploy apps/web/dist --project-name xion-assistant
 ```
 
-Copiar ID D1 a `workers/api/wrangler.toml`. Configurar bindings `DB` y `RELEASES`, secrets `JWT_SECRET`/`TOKEN_ENCRYPTION_KEY`, variable Pages `VITE_PUBLIC_API_URL`, dominio Pages `assistant.xion.<TU_DOMINIO>` y ruta Worker `api.asst.xion.<TU_DOMINIO>/*`.
+Copiar ID D1 a `workers/api/wrangler.toml` sin `< >`. Configurar bindings `DB` y `RELEASES`, secrets `JWT_SECRET`/`TOKEN_ENCRYPTION_KEY`, variable Pages `VITE_PUBLIC_API_URL`, dominio Pages `assistant.xion.<TU_DOMINIO>` y ruta Worker `api.asst.xion.<TU_DOMINIO>/*`.
 
 ## Probar Command Registry
 

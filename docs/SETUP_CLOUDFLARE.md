@@ -6,11 +6,64 @@ Guia directa para montar Xion Assistant usando `dash.cloudflare.com`.
 - API principal: Cloudflare Worker.
 - Base de datos: Cloudflare D1.
 - Releases, APKs, instaladores y manifests: Cloudflare R2.
+- Variables y secrets de produccion: Cloudflare Dashboard, no `.env` local.
 - Dominios oficiales:
   - Web: `assistant.xion.<TU_DOMINIO>`
   - API: `api.asst.xion.<TU_DOMINIO>`
 
 No usar `admin.<TU_DOMINIO>`, `api.<TU_DOMINIO>` ni `app.<TU_DOMINIO>`, para evitar choque con otros proyectos.
+
+## 0. Regla cloud-first
+
+Produccion corre en Cloudflare. Local solo sirve para desarrollo.
+
+Si una parte necesita su propio Worker, se crea. No se fuerza todo dentro de un solo Worker si eso complica seguridad, deploy o limites.
+
+Topologia actual:
+
+```text
+Repo GitHub: xion-assistant
+Pages Web/Admin: xion-assistant -> mismo repo, build apps/web
+Worker API: xion-assistant-api -> mismo repo, root workers/api
+D1: xion-assistant
+R2: xion-assistant-releases
+```
+
+Topologia preparada cuando crezca:
+
+```text
+Repo GitHub: xion-assistant
+Worker API: xion-assistant-api -> mismo repo, root workers/api
+Worker Voice: xion-assistant-voice -> mismo repo, root workers/voice
+Worker Releases: xion-assistant-releases-api -> mismo repo, root workers/releases
+Pages Web/Admin: xion-assistant -> mismo repo, build apps/web
+D1 principal: xion-assistant
+R2 releases: xion-assistant-releases
+```
+
+Regla:
+
+- Auth, memoria, comandos, OAuth y acciones viven en `xion-assistant-api`.
+- TTS/STT puede moverse a `xion-assistant-voice` si necesita limites, costos o colas separadas.
+- Descargas, checksums y latest manifests pueden moverse a `xion-assistant-releases-api` si R2/update crece.
+- Cada Worker tiene sus propias variables/secrets en Cloudflare.
+- Pages solo recibe variables publicas `VITE_*`.
+- Secrets nunca van a Pages ni al frontend.
+- Bindings D1/R2 se configuran en Cloudflare, no como variables de texto.
+- Cloudflare puede conectar el mismo repo varias veces: una vez para Pages y una vez por cada Worker.
+- Lo que cambia entre proyectos es `Root directory`, build/deploy command, bindings, variables y dominio.
+
+Mapa tipo Xion-TV:
+
+```text
+Worker API: Workers & Pages > xion-assistant-api > Settings > Variables and Secrets
+Worker Voice futuro: Workers & Pages > xion-assistant-voice > Settings > Variables and Secrets
+Worker Releases futuro: Workers & Pages > xion-assistant-releases-api > Settings > Variables and Secrets
+Pages Web/Admin: Workers & Pages > xion-assistant > Settings > Environment variables
+Bindings API: Workers & Pages > xion-assistant-api > Settings > Bindings
+Bindings Voice futuro: Workers & Pages > xion-assistant-voice > Settings > Bindings
+Bindings Releases futuro: Workers & Pages > xion-assistant-releases-api > Settings > Bindings
+```
 
 ## 1. Subir repo
 
@@ -37,13 +90,14 @@ xion-assistant
 
 5. Click `Create`.
 6. Copiar `database_id`.
-7. Pegar ese ID en `workers/api/wrangler.toml`:
+7. Pegar ese ID en `workers/api/wrangler.toml`.
+8. No dejar `< >` alrededor del UUID real.
 
 ```toml
 [[d1_databases]]
 binding = "DB"
 database_name = "xion-assistant"
-database_id = "TU_DATABASE_ID_REAL"
+database_id = "dde69fd1-0526-4216-897f-8954ce44b8a9"
 migrations_dir = "migrations"
 ```
 
@@ -93,8 +147,8 @@ El bucket queda privado. Descargas deben pasar por Worker o por URLs firmadas cu
 Rutas previstas:
 
 ```text
-desktop/windows/xion-assistant-setup-0.10.1.exe
-mobile/android/xion-assistant-0.10.1.apk
+desktop/windows/xion-assistant-setup-0.10.2.exe
+mobile/android/xion-assistant-0.10.2.apk
 latest/windows.json
 latest/android.json
 checksums/
@@ -124,7 +178,7 @@ Dentro del Worker `xion-assistant-api`:
 2. Abrir `Builds`.
 3. Click `Connect Git`.
 4. Seleccionar repo `xion-assistant`.
-5. Configurar:
+5. Configurar este mismo repo para API:
 
 ```text
 Root directory: workers/api
@@ -133,6 +187,8 @@ Deploy command: corepack pnpm run deploy
 ```
 
 Si pide output directory, dejar vacio.
+
+Nota: es el mismo repo que usara Pages. En Cloudflare no hace falta repos separados. Solo cambias `Root directory`, comandos, bindings y dominio.
 
 ## 6. Bindings del Worker
 
@@ -162,7 +218,7 @@ Importante:
 - `RELEASES` debe llamarse exactamente `RELEASES`.
 - `database_id` real debe estar en `workers/api/wrangler.toml`.
 
-## 7. Variables y secrets del Worker
+## 7. Variables y secrets del Worker API
 
 Ruta:
 
@@ -212,6 +268,143 @@ Despues de cambiar variables/secrets:
 curl https://api.asst.xion.<TU_DOMINIO>/api/health
 ```
 
+## 7.1 Variables por proyecto Cloudflare
+
+No pongas todo en el mismo lugar. Cada proyecto lee solo sus propias variables.
+
+### Worker API `xion-assistant-api`
+
+Ruta:
+
+```text
+Workers & Pages > xion-assistant-api > Settings > Variables and Secrets
+```
+
+Variables:
+
+```env
+PUBLIC_WEB_URL=https://assistant.xion.<TU_DOMINIO>
+PUBLIC_API_URL=https://api.asst.xion.<TU_DOMINIO>
+AI_PROVIDER=mock
+AI_MODEL=mock-assistant
+AI_TTS_PROVIDER=mock
+AI_TTS_DEFAULT_VOICE=xion_voice_1
+AI_TTS_DEFAULT_LANGUAGE=es-CL
+AI_TTS_DEFAULT_SPEED=1
+```
+
+Secrets:
+
+```env
+JWT_SECRET=secret_largo_random
+TOKEN_ENCRYPTION_KEY=secret_largo_random_distinto
+AI_API_KEY=si_usas_proveedor_real
+GOOGLE_CLIENT_ID=cuando_actives_google
+GOOGLE_CLIENT_SECRET=cuando_actives_google
+SPOTIFY_CLIENT_ID=cuando_actives_spotify
+SPOTIFY_CLIENT_SECRET=cuando_actives_spotify
+```
+
+Bindings, no variables:
+
+```text
+DB -> D1 xion-assistant
+RELEASES -> R2 xion-assistant-releases
+```
+
+### Pages `xion-assistant`
+
+Ruta:
+
+```text
+Workers & Pages > xion-assistant > Settings > Environment variables
+```
+
+Production:
+
+```env
+VITE_PUBLIC_API_URL=https://api.asst.xion.<TU_DOMINIO>
+```
+
+Preview, si se usa:
+
+```env
+VITE_PUBLIC_API_URL=https://api-preview.asst.xion.<TU_DOMINIO>
+```
+
+No poner `JWT_SECRET`, `TOKEN_ENCRYPTION_KEY`, `AI_API_KEY`, `GOOGLE_CLIENT_SECRET` ni `SPOTIFY_CLIENT_SECRET` en Pages.
+
+### Worker Voice futuro `xion-assistant-voice`
+
+Crear solo cuando TTS/STT real necesite aislar limites, logs o costos.
+
+Variables:
+
+```env
+PUBLIC_API_URL=https://api.asst.xion.<TU_DOMINIO>
+AI_TTS_PROVIDER=configured-provider
+AI_TTS_MODEL=configured-model
+AI_STT_MODEL=configured-model
+AI_TTS_DEFAULT_VOICE=xion_voice_1
+AI_TTS_DEFAULT_LANGUAGE=es-CL
+```
+
+Secrets:
+
+```env
+AI_API_KEY=secret_del_proveedor
+TOKEN_ENCRYPTION_KEY=secret_largo_random
+```
+
+Bindings posibles:
+
+```text
+DB -> D1 xion-assistant
+VOICE_CACHE -> R2 xion-assistant-voice-cache
+```
+
+### Worker Releases futuro `xion-assistant-releases-api`
+
+Crear solo cuando update/download necesite Worker separado.
+
+Variables:
+
+```env
+PUBLIC_API_URL=https://api.asst.xion.<TU_DOMINIO>
+RELEASES_BASE_PATH=/
+```
+
+Secrets:
+
+```env
+TOKEN_ENCRYPTION_KEY=secret_largo_random
+```
+
+Bindings:
+
+```text
+RELEASES -> R2 xion-assistant-releases
+DB -> D1 xion-assistant
+```
+
+### Cuando cambies variables
+
+Para Worker:
+
+1. Guardar variables/secrets.
+2. Entrar a `Deployments`.
+3. Click `Retry deployment` o hacer nuevo push.
+4. Probar endpoint health.
+
+Para Pages:
+
+1. Guardar variable.
+2. Entrar a `Deployments`.
+3. Click `Retry deployment`.
+4. Probar web.
+
+Variables `VITE_*` se leen durante build. Si cambias variable Pages y no redeployas, web puede seguir usando valor viejo.
+
 ## 8. Dominio del Worker
 
 Dentro de `xion-assistant-api`:
@@ -260,6 +453,8 @@ Build output directory: apps/web/dist
 ```
 
 8. Deploy.
+
+Nota: este Pages project usa el mismo repo que Worker API. Aqui `Root directory` queda `/` porque el monorepo instala dependencias desde raiz y luego compila `@xion-assistant/web`.
 
 ## 10. Variables de Pages
 
@@ -501,7 +696,7 @@ pnpm --filter @xion-assistant/api exec wrangler d1 migrations list xion-assistan
 ## Checklist final
 
 - D1 `xion-assistant` creado.
-- `database_id` real puesto en `workers/api/wrangler.toml`.
+- `database_id` real puesto en `workers/api/wrangler.toml` sin `< >`.
 - Migraciones `0001_initial.sql` y `0002_command_registry.sql` aplicadas.
 - R2 `xion-assistant-releases` creado.
 - Worker `xion-assistant-api` creado.
@@ -522,3 +717,6 @@ pnpm --filter @xion-assistant/api exec wrangler d1 migrations list xion-assistan
 - Command Registry responde comandos basicos.
 - R2 queda privado.
 - Releases futuras pasan por checksum antes de publicarse.
+- Variables/secrets productivas viven en Cloudflare Dashboard.
+- Pages solo tiene `VITE_*`; ningun secret vive en frontend.
+- Si Voice/Releases requieren aislarse, crear Workers separados y bindings propios.
