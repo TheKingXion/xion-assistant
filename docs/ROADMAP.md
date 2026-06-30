@@ -126,6 +126,12 @@
 - Documented exact JavaScript origins and redirect URIs for Google OAuth.
 - Documented DNS/custom-domain fix for unresolved API host.
 
+## v0.10.5
+
+- Added `keep_vars = true` to Worker config so `wrangler deploy` preserves dashboard variables.
+- Documented recovery steps when Cloudflare build leaves only `JWT_SECRET` and `TOKEN_ENCRYPTION_KEY`.
+- Clarified Worker vars stay in dashboard while `wrangler.toml` keeps safe deploy config and bindings.
+
 ## v0.2.0
 
 - Google OAuth.

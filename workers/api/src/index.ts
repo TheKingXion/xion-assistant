@@ -44,7 +44,7 @@ app.get("/api/health", (c) =>
   c.json({
     ok: true,
     name: "xion-assistant-api",
-    version: "0.10.4",
+    version: "0.10.5",
     routes: {
       web: c.env.PUBLIC_WEB_URL,
       api: c.env.PUBLIC_API_URL

@@ -2,6 +2,7 @@ name = "xion-assistant-api"
 main = "src/index.ts"
 compatibility_date = "2024-12-30"
 compatibility_flags = ["nodejs_compat"]
+keep_vars = true
 
 [dev]
 host = "localhost"

@@ -1,6 +1,6 @@
 # START FROM ZERO
 
-Estado: `v0.10.4` foundation. Incluye Command Registry autenticado, shortcuts privados, metricas, UI, migracion `0002`, guia Cloudflare cloud-first y pasos Google OAuth para dominio real. Deploy real requiere recursos y secrets Cloudflare.
+Estado: `v0.10.5` foundation. Incluye Command Registry autenticado, shortcuts privados, metricas, UI, migracion `0002`, guia Cloudflare cloud-first, pasos Google OAuth para dominio real y proteccion `keep_vars = true` para que deploys Worker no borren variables del dashboard. Deploy real requiere recursos y secrets Cloudflare.
 
 ## Cloudflare: Worker, Pages, D1 y R2
 
@@ -17,6 +17,7 @@ Regla produccion:
 - Ahora solo existe y se configura `xion-assistant-api`; Workers extra quedan pendientes.
 - Bindings `DB` y `RELEASES` se configuran como bindings Cloudflare, no como texto en frontend.
 - No dejar `[[routes]]` con `<TU_DOMINIO>` en `wrangler.toml`; eso rompe `wrangler deploy`.
+- Mantener `keep_vars = true` en `workers/api/wrangler.toml`; sin eso, `wrangler deploy` puede borrar variables dashboard del Worker.
 - Primero despliega `xion-assistant-api`; despues crea Pages `xion-assistant` si aun no existe.
 
 Orden desde dashboard:

@@ -49,6 +49,44 @@ Pages Web/Admin: Workers & Pages > xion-assistant > Settings > Environment varia
 
 No configures `xion-assistant-voice` ni `xion-assistant-releases-api` ahora. Esos Workers no existen todavia.
 
+## 0.1 Regla anti-borrado de variables del Worker
+
+`workers/api/wrangler.toml` debe tener:
+
+```toml
+keep_vars = true
+```
+
+Motivo: cuando Cloudflare build ejecuta `wrangler deploy`, Wrangler sincroniza config del repo con el Worker. Sin `keep_vars = true`, variables normales agregadas en dashboard pueden desaparecer en el siguiente deploy si no estan en `wrangler.toml`.
+
+En este proyecto no ponemos secrets ni variables productivas en `wrangler.toml`, porque:
+
+- `PUBLIC_WEB_URL`, `PUBLIC_API_URL` y variables AI se configuran en dashboard.
+- `JWT_SECRET`, `TOKEN_ENCRYPTION_KEY` y OAuth secrets se configuran como secrets.
+- `wrangler.toml` solo mantiene config segura de deploy y bindings no secretos.
+
+Si ya te paso que despues de buildear quedaron solo `JWT_SECRET` y `TOKEN_ENCRYPTION_KEY`, hacer esto:
+
+1. Confirmar que `keep_vars = true` ya esta en `workers/api/wrangler.toml`.
+2. Hacer commit y push.
+3. Esperar deploy nuevo de `xion-assistant-api`.
+4. Volver a agregar una sola vez las variables normales en dashboard:
+
+```env
+PUBLIC_WEB_URL=https://assistant.xion.exiliadosrpv2.uk
+PUBLIC_API_URL=https://api.asst.xion.exiliadosrpv2.uk
+AI_PROVIDER=mock
+AI_MODEL=mock-assistant
+AI_TTS_PROVIDER=mock
+AI_TTS_DEFAULT_VOICE=xion_voice_1
+AI_TTS_DEFAULT_LANGUAGE=es-CL
+AI_TTS_DEFAULT_SPEED=1
+```
+
+5. Guardar.
+6. Retry deployment.
+7. En siguientes builds ya no deben borrarse.
+
 ## 1. Subir repo
 
 El repo debe estar en GitHub antes de conectar Pages o Worker.
@@ -131,8 +169,8 @@ El bucket queda privado. Descargas deben pasar por Worker o por URLs firmadas cu
 Rutas previstas:
 
 ```text
-desktop/windows/xion-assistant-setup-0.10.4.exe
-mobile/android/xion-assistant-0.10.4.apk
+desktop/windows/xion-assistant-setup-0.10.5.exe
+mobile/android/xion-assistant-0.10.5.apk
 latest/windows.json
 latest/android.json
 checksums/
@@ -269,6 +307,8 @@ curl https://api.asst.xion.<TU_DOMINIO>/api/health
 ```
 
 Importante: `workers/api/wrangler.toml` no incluye `PUBLIC_WEB_URL`, `PUBLIC_API_URL` ni `[[routes]]` con placeholders. Produccion toma variables y dominio desde Cloudflare Dashboard.
+
+Tambien debe incluir `keep_vars = true`. Si falta, el deploy puede borrar variables normales del dashboard y dejar solo secrets.
 
 ## 8. Dominio del Worker
 
