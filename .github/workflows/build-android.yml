@@ -3,12 +3,30 @@ name: Build Android
 on:
   workflow_dispatch:
   push:
+    branches:
+      - main
+      - master
     tags:
       - "v*"
+    paths:
+      - "apps/mobile/**"
+      - "packages/**"
+      - "scripts/patch-expo-android-signing.mjs"
+      - "scripts/generate-checksums.ts"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - ".npmrc"
+      - ".github/workflows/build-android.yml"
+
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-android:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     env:
       PNPM_CONFIG_NODE_LINKER: hoisted
       R2_BUCKET_NAME: ${{ vars.R2_BUCKET_NAME }}
@@ -16,23 +34,58 @@ jobs:
       EXPO_PUBLIC_API_URL: ${{ vars.PUBLIC_API_URL }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.caching=true -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=1g"
+      ORG_GRADLE_PROJECT_org.gradle.caching: "true"
+      ORG_GRADLE_PROJECT_org.gradle.parallel: "true"
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
         with:
           version: 9.15.4
-      - uses: actions/setup-node@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
-      - uses: actions/setup-java@v4
+      - name: Setup Java 17 with Gradle cache
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
-      - uses: android-actions/setup-android@v3
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm test
-      - run: pnpm --filter @xion-assistant/mobile prebuild:android
+          cache: gradle
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Cache Android and Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            ~/.android/build-cache
+            apps/mobile/android/.gradle
+            apps/mobile/android/build
+            apps/mobile/android/app/build
+          key: android-gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', 'pnpm-lock.yaml') }}
+          restore-keys: |
+            android-gradle-${{ runner.os }}-
+      - name: Cache Expo and Metro
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.expo
+            ~/.cache
+            apps/mobile/.expo
+            apps/mobile/node_modules/.cache
+          key: expo-metro-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'apps/mobile/package.json') }}
+          restore-keys: |
+            expo-metro-${{ runner.os }}-
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+      - name: Run tests
+        run: pnpm test
+      - name: Prebuild Android project
+        run: pnpm --filter @xion-assistant/mobile prebuild:android
       - name: Decode Android signing key
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -49,7 +102,10 @@ jobs:
             echo "ANDROID_KEY_ALIAS=$ANDROID_KEY_ALIAS"
           } >> apps/mobile/android/gradle.properties
       - run: node scripts/patch-expo-android-signing.mjs
-      - run: pnpm --filter @xion-assistant/mobile build:android:release
+      - name: Build release APK
+        run: |
+          chmod +x apps/mobile/android/gradlew
+          pnpm --filter @xion-assistant/mobile build:android:release
         env:
           NODE_ENV: production
       - name: Prepare Android release files
@@ -63,6 +119,7 @@ jobs:
           SIZE="$(wc -c < "$APK")"
           export VERSION SHA256 SIZE
           node -e "const fs=require('fs'); const version=process.env.VERSION; const api=process.env.PUBLIC_API_URL; const sha=process.env.SHA256; const size=Number(process.env.SIZE); fs.writeFileSync('dist/releases/mobile/android/latest.json', JSON.stringify({version, platform:'android', channel:'stable', download_url:api + '/releases/mobile/android/xion-assistant-' + version + '.apk', sha256:sha, size, changelog:'Xion Assistant Android voice-first app.', required:false, min_supported_version:'0.12.0', published_at:new Date().toISOString()}, null, 2));" 
+          node -e "const fs=require('fs'); const version=process.env.VERSION; const api=process.env.PUBLIC_API_URL; fs.mkdirSync('dist/releases/downloads',{recursive:true}); fs.copyFileSync('dist/releases/mobile/android/xion-assistant-' + version + '.apk','dist/releases/downloads/xion-assistant.apk'); fs.writeFileSync('dist/releases/downloads/mobile-version.json', JSON.stringify({versionCode:Number(require('./apps/mobile/app.json').expo.android.versionCode),versionName:version,apkUrl:api + '/releases/downloads/xion-assistant.apk',required:false}, null, 2));"
       - run: pnpm release:checksums dist/releases dist/releases/checksums.json
       - uses: actions/upload-artifact@v4
         with:
@@ -73,6 +130,8 @@ jobs:
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           if [ "$VERSION" = "$GITHUB_REF_NAME" ]; then VERSION="$(node -p "require('./apps/mobile/package.json').version")"; fi
-          npx wrangler r2 object put "$R2_BUCKET_NAME/mobile/android/xion-assistant-${VERSION}.apk" --file "dist/releases/mobile/android/xion-assistant-${VERSION}.apk"
-          npx wrangler r2 object put "$R2_BUCKET_NAME/mobile/android/latest.json" --file "dist/releases/mobile/android/latest.json"
-          npx wrangler r2 object put "$R2_BUCKET_NAME/checksums.json" --file "dist/releases/checksums.json"
+          npx wrangler r2 object put "$R2_BUCKET_NAME/mobile/android/xion-assistant-${VERSION}.apk" --file "dist/releases/mobile/android/xion-assistant-${VERSION}.apk" --content-type "application/vnd.android.package-archive"
+          npx wrangler r2 object put "$R2_BUCKET_NAME/mobile/android/latest.json" --file "dist/releases/mobile/android/latest.json" --content-type "application/json; charset=utf-8"
+          npx wrangler r2 object put "$R2_BUCKET_NAME/downloads/xion-assistant.apk" --file "dist/releases/downloads/xion-assistant.apk" --content-type "application/vnd.android.package-archive"
+          npx wrangler r2 object put "$R2_BUCKET_NAME/downloads/mobile-version.json" --file "dist/releases/downloads/mobile-version.json" --content-type "application/json; charset=utf-8"
+          npx wrangler r2 object put "$R2_BUCKET_NAME/checksums.json" --file "dist/releases/checksums.json" --content-type "application/json; charset=utf-8"
