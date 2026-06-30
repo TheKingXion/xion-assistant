@@ -1,6 +1,6 @@
 # AI Gateway
 
-`v0.11.0` includes an AI Gateway interface with mock and Google Gemini providers.
+`v0.11.2` includes an AI Gateway interface with mock and Google Gemini providers.
 
 ## Methods
 
@@ -13,7 +13,7 @@
 ## Providers
 
 - `mock`: local/test fallback.
-- `google`: Gemini Interactions API using `AI_API_KEY`.
+- `google`: Gemini `generateContent` API using `AI_API_KEY`.
 
 Provider keys stay server-side in Cloudflare Worker secrets. Frontend never receives `AI_API_KEY`.
 
@@ -25,7 +25,7 @@ AI_MODEL=gemini-2.5-flash
 AI_SMALL_MODEL=gemini-2.5-flash
 ```
 
-The Worker calls `https://generativelanguage.googleapis.com/v1beta/interactions` with `x-goog-api-key` and reads `output_text`.
+The Worker calls `https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent` with `x-goog-api-key` and reads candidate text parts.
 
 ## Endpoints
 

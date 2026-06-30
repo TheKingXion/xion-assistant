@@ -21,10 +21,11 @@ describe("voice gateway mock", () => {
 
   it("synthesizes Google TTS as playable wav base64", async () => {
     const pcm = Buffer.from([0, 0, 1, 0]).toString("base64");
-    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toContain("/v1beta/models/gemini-2.5-flash-preview-tts:generateContent");
       expect(new Headers(init?.headers).get("x-goog-api-key")).toBe("secret-key");
-      expect(JSON.parse(String(init?.body)).response_format.type).toBe("audio");
-      return new Response(JSON.stringify({ output_audio: { data: pcm } }), {
+      expect(JSON.parse(String(init?.body)).generationConfig.responseModalities).toEqual(["AUDIO"]);
+      return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ inlineData: { data: pcm, mimeType: "audio/pcm" } }] } }] }), {
         status: 200,
         headers: { "content-type": "application/json" }
       });

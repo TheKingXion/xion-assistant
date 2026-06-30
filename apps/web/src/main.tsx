@@ -38,10 +38,11 @@ import {
 import "./styles.css";
 
 const API_URL = import.meta.env.VITE_PUBLIC_API_URL ?? "http://localhost:8787";
-const VERSION = "0.11.1";
+const VERSION = "0.11.2";
 
-type AuthState = { token: string; user: { id: string; email: string; displayName: string } };
+type AuthState = { token: string; user: { id: string; email: string; displayName: string; isAdmin: boolean } };
 type View = "dashboard" | "assistant" | "memory" | "contacts" | "voice" | "commands" | "connectors" | "updates" | "settings";
+type Route = "app" | "admin";
 type ApiState = "idle" | "loading" | "ok" | "error";
 type Risk = "low" | "medium" | "high";
 type ActionStatus = "draft" | "pending_confirmation" | "running" | "completed" | "failed" | "cancelled";
@@ -68,6 +69,7 @@ type AssistantResponse = {
   error?: string;
 };
 type ChatItem = { id: string; role: "user" | "assistant" | "system"; text: string; response?: AssistantResponse; createdAt: string };
+type StoredMessage = { id: string; role: "user" | "assistant" | "system"; content: string; createdAt: string };
 
 const defaultVoiceSettings = (userId: string): VoiceSettings => ({
   userId,
@@ -84,10 +86,12 @@ const defaultVoiceSettings = (userId: string): VoiceSettings => ({
 
 function App() {
   const [auth, setAuth] = useState<AuthState | null>(() => readStorage<AuthState>("xion_auth"));
+  const [route, setRoute] = useState<Route>(() => currentRoute());
   const [view, setView] = useState<View>("dashboard");
   const [health, setHealth] = useState<Health | null>(null);
   const [healthState, setHealthState] = useState<ApiState>("idle");
   const [toast, setToast] = useState("");
+  const [theme, setTheme] = useState<"light" | "dark">(() => readStorage<"light" | "dark">("xion_theme") ?? "light");
 
   const api = useMemo(() => createApi(auth?.token), [auth?.token]);
   const apiHost = useMemo(() => API_URL.replace(/^https?:\/\//, ""), []);
@@ -95,6 +99,16 @@ function App() {
   useEffect(() => {
     void loadHealth();
   }, []);
+
+  useEffect(() => {
+    const onPop = () => setRoute(currentRoute());
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("xion_theme", JSON.stringify(theme));
+  }, [theme]);
 
   useEffect(() => {
     const hash = window.location.hash.replace(/^#/, "");
@@ -130,13 +144,23 @@ function App() {
     localStorage.setItem("xion_auth", JSON.stringify(next));
     setAuth(next);
     setView("dashboard");
+    if (currentRoute() === "admin" && !next.user.isAdmin) navigateTo("app");
   };
 
   const logout = () => {
     localStorage.removeItem("xion_auth");
     setAuth(null);
     setView("dashboard");
+    navigateTo("app");
   };
+
+  const navigateTo = (next: Route) => {
+    const path = next === "admin" ? "/admin" : "/";
+    window.history.pushState(null, "", path);
+    setRoute(next);
+  };
+
+  const toggleTheme = () => setTheme((current) => current === "dark" ? "light" : "dark");
 
   const notify = (message: string) => {
     setToast(message);
@@ -144,7 +168,7 @@ function App() {
   };
 
   return (
-    <main className="app-shell">
+    <main className={`app-shell ${theme}`}>
       <header className="topbar">
         <div className="brand-block">
           <div className="brand-mark"><Sparkles size={20} /></div>
@@ -155,30 +179,80 @@ function App() {
         </div>
         <div className="topbar-actions">
           <StatusPill state={healthState} label={health?.version ? `API ${health.version}` : "API"} />
+          {auth?.user.isAdmin ? <button className="secondary route-button" onClick={() => navigateTo(route === "admin" ? "app" : "admin")}>{route === "admin" ? "Chat" : "Admin"}</button> : null}
+          <button className="icon-button" title="Tema" onClick={toggleTheme}>{theme === "dark" ? <Power size={18} /> : <Sparkles size={18} />}</button>
           {auth ? <button className="icon-button" title="Cerrar sesion" onClick={logout}><LogOut size={18} /></button> : null}
         </div>
       </header>
 
       {!auth ? (
         <AuthPanel onAuthenticated={setSession} />
+      ) : route === "admin" ? (
+        auth.user.isAdmin ? (
+          <AdminShell api={api} auth={auth} health={health} view={view} setView={setView} notify={notify} />
+        ) : (
+          <AccessDenied user={auth.user} />
+        )
       ) : (
-        <div className="layout">
-          <Sidebar view={view} setView={setView} user={auth.user} />
-          <section className="main-surface">
-            {view === "dashboard" ? <Dashboard api={api} health={health} user={auth.user} setView={setView} /> : null}
-            {view === "assistant" ? <AssistantPanel api={api} auth={auth} notify={notify} /> : null}
-            {view === "memory" ? <MemoryPanel api={api} userId={auth.user.id} notify={notify} /> : null}
-            {view === "contacts" ? <ContactsPanel api={api} userId={auth.user.id} notify={notify} /> : null}
-            {view === "voice" ? <VoicePanel api={api} userId={auth.user.id} notify={notify} /> : null}
-            {view === "commands" ? <CommandsPanel api={api} notify={notify} /> : null}
-            {view === "connectors" ? <ConnectorsPanel api={api} userId={auth.user.id} notify={notify} /> : null}
-            {view === "updates" ? <UpdatesPanel api={api} /> : null}
-            {view === "settings" ? <SettingsPanel apiUrl={API_URL} health={health} /> : null}
-          </section>
-        </div>
+        <UserShell api={api} auth={auth} notify={notify} />
       )}
       {toast ? <div className="toast"><Check size={16} />{toast}</div> : null}
     </main>
+  );
+}
+
+function currentRoute(): Route {
+  return window.location.pathname.startsWith("/admin") ? "admin" : "app";
+}
+
+function UserShell({ api, auth, notify }: { api: ApiClient; auth: AuthState; notify: (message: string) => void }) {
+  return (
+    <div className="user-home">
+      <AssistantPanel api={api} auth={auth} notify={notify} />
+      <AccountPanel user={auth.user} />
+    </div>
+  );
+}
+
+function AdminShell({ api, auth, health, view, setView, notify }: { api: ApiClient; auth: AuthState; health: Health | null; view: View; setView: (view: View) => void; notify: (message: string) => void }) {
+  return (
+    <div className="layout">
+      <Sidebar view={view} setView={setView} user={auth.user} />
+      <section className="main-surface">
+        {view === "dashboard" ? <Dashboard api={api} health={health} user={auth.user} setView={setView} /> : null}
+        {view === "assistant" ? <AssistantPanel api={api} auth={auth} notify={notify} /> : null}
+        {view === "memory" ? <MemoryPanel api={api} userId={auth.user.id} notify={notify} /> : null}
+        {view === "contacts" ? <ContactsPanel api={api} userId={auth.user.id} notify={notify} /> : null}
+        {view === "voice" ? <VoicePanel api={api} userId={auth.user.id} notify={notify} /> : null}
+        {view === "commands" ? <CommandsPanel api={api} notify={notify} /> : null}
+        {view === "connectors" ? <ConnectorsPanel api={api} userId={auth.user.id} notify={notify} /> : null}
+        {view === "updates" ? <UpdatesPanel api={api} /> : null}
+        {view === "settings" ? <SettingsPanel apiUrl={API_URL} health={health} /> : null}
+      </section>
+    </div>
+  );
+}
+
+function AccountPanel({ user }: { user: AuthState["user"] }) {
+  return (
+    <PanelShell title="Cuenta" subtitle="Sesion y perfil" icon={<ShieldCheck size={20} />}>
+      <div className="settings-list">
+        <InfoRow label="Usuario" value={user.displayName} />
+        <InfoRow label="Email" value={user.email} />
+        <InfoRow label="Rol" value={user.isAdmin ? "admin" : "usuario"} />
+        <InfoRow label="Panel admin" value={user.isAdmin ? "/admin habilitado" : "sin acceso"} />
+      </div>
+    </PanelShell>
+  );
+}
+
+function AccessDenied({ user }: { user: AuthState["user"] }) {
+  return (
+    <div className="user-home">
+      <PanelShell title="Sin acceso" subtitle="Ruta admin protegida" icon={<ShieldCheck size={20} />}>
+        <p className="muted-line">{user.email} no tiene `is_admin = 1` en D1.</p>
+      </PanelShell>
+    </div>
   );
 }
 
@@ -325,13 +399,23 @@ function Dashboard({ api, health, user, setView }: { api: ApiClient; health: Hea
 
 function AssistantPanel({ api, auth, notify }: { api: ApiClient; auth: AuthState; notify: (message: string) => void }) {
   const [message, setMessage] = useState("Hola Xion, organiza mi dia y responde con voz");
-  const [history, setHistory] = useState<ChatItem[]>(() => readStorage<ChatItem[]>("xion_chat") ?? []);
+  const [history, setHistory] = useState<ChatItem[]>([]);
   const [busy, setBusy] = useState(false);
   const [spokenResponse, setSpokenResponse] = useState(true);
 
+  useEffect(() => {
+    void api.get<{ messages: StoredMessage[] }>("/api/assistant/messages?limit=50")
+      .then((data) => setHistory(data.messages.map((item) => ({
+        id: item.id,
+        role: item.role,
+        text: item.content,
+        createdAt: item.createdAt
+      }))))
+      .catch(() => undefined);
+  }, [api, auth.user.id]);
+
   const saveHistory = (items: ChatItem[]) => {
     setHistory(items);
-    localStorage.setItem("xion_chat", JSON.stringify(items.slice(-30)));
   };
 
   const send = async () => {

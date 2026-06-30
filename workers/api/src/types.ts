@@ -25,7 +25,17 @@ export type UserRecord = {
   id: string;
   email: string;
   displayName: string;
+  isAdmin: boolean;
   passwordHash?: string;
+  createdAt: string;
+};
+
+export type AssistantMessageRecord = {
+  id: string;
+  userId: string;
+  conversationId?: string;
+  role: "user" | "assistant" | "system";
+  content: string;
   createdAt: string;
 };
 

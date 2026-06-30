@@ -1,6 +1,6 @@
 # Text To Speech
 
-Providers in `v0.11.0`: `mock` and Google Gemini TTS.
+Providers in `v0.11.2`: `mock` and Google Gemini TTS.
 
 ## Variables
 
@@ -34,7 +34,7 @@ Frontend calls Worker endpoint:
 POST /api/voice/speak
 ```
 
-Worker calls Google Gemini TTS with the Interactions API when `AI_TTS_PROVIDER=google`.
+Worker calls Google Gemini TTS with `models/{model}:generateContent` and `responseModalities: ["AUDIO"]` when `AI_TTS_PROVIDER=google`.
 
 ## Cache And R2
 

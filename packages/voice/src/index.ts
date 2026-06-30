@@ -113,15 +113,20 @@ export const synthesizeSpeechAsync = async (input: {
   const voice = voices.find((item) => item.id === input.voiceId || item.voiceKey === input.voiceId) ?? voices.find((item) => item.id === "Kore") ?? voices[0];
   if (!voice) throw new Error("No voices configured");
   const model = input.model ?? "gemini-2.5-flash-preview-tts";
-  const response = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
     method: "POST",
     headers: { "content-type": "application/json", "x-goog-api-key": input.apiKey },
     body: JSON.stringify({
-      model,
-      input: input.text,
-      response_format: { type: "audio" },
-      generation_config: {
-        speech_config: [{ voice: voice.voiceKey }]
+      contents: [{ role: "user", parts: [{ text: input.text }] }],
+      generationConfig: {
+        responseModalities: ["AUDIO"],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: {
+              voiceName: voice.voiceKey
+            }
+          }
+        }
       }
     })
   });

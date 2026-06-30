@@ -1,6 +1,6 @@
 # START FROM ZERO
 
-Estado: `v0.11.1` foundation. Incluye Command Registry autenticado, shortcuts privados, metricas, web completa, login/registro con Google, Gemini texto/TTS, migracion `0002`, guia Cloudflare cloud-first solo con GitHub/Dashboard, pasos para sacar `CLOUDFLARE_API_TOKEN`, pasos Google OAuth para dominio real y proteccion `keep_vars = true` para que deploys Worker no borren variables del dashboard. Deploy real requiere recursos y secrets Cloudflare.
+Estado: `v0.11.2` foundation. Incluye Command Registry autenticado, shortcuts privados, metricas, chat/cuenta en `/`, dashboard admin en `/admin`, `is_admin`, mensajes persistidos, tema claro/oscuro, login/registro con Google, Gemini texto/TTS via `generateContent`, migracion `0003`, guia Cloudflare cloud-first solo con GitHub/Dashboard, pasos para sacar `CLOUDFLARE_API_TOKEN`, pasos Google OAuth para dominio real y proteccion `keep_vars = true` para que deploys Worker no borren variables del dashboard. Deploy real requiere recursos y secrets Cloudflare.
 
 ## Cloudflare: Worker, Pages, D1 y R2
 
@@ -23,7 +23,7 @@ Regla produccion:
 Orden desde dashboard:
 
 1. Crear D1 `xion-assistant`.
-2. Aplicar migraciones `workers/api/migrations/0001_initial.sql` y `0002_command_registry.sql`.
+2. Aplicar migraciones `workers/api/migrations/0001_initial.sql`, `0002_command_registry.sql` y `0003_admin_and_sessions.sql`.
 3. Crear R2 `xion-assistant-releases`.
 4. Crear Worker `xion-assistant-api`.
 5. Conectar Worker al mismo repo GitHub con root `workers/api`.

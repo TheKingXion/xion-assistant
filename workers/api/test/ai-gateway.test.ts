@@ -2,11 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 import { createAiGateway } from "../src/services/ai-gateway";
 
 describe("google ai gateway", () => {
-  it("uses Google Interactions API when configured", async () => {
-    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
+  it("uses Google generateContent API when configured", async () => {
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toContain("/v1beta/models/gemini-2.5-flash:generateContent");
       expect(new Headers(init?.headers).get("x-goog-api-key")).toBe("secret-key");
-      expect(JSON.parse(String(init?.body)).model).toBe("gemini-2.5-flash");
-      return new Response(JSON.stringify({ output_text: "Respuesta real" }), {
+      expect(JSON.parse(String(init?.body)).contents[0].parts[0].text).toContain("Hola");
+      return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: "Respuesta real" }] } }] }), {
         status: 200,
         headers: { "content-type": "application/json" }
       });

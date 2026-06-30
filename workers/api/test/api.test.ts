@@ -55,7 +55,7 @@ describe("xion assistant api", () => {
     const json = (await res.json()) as any;
 
     expect(json.ok).toBe(true);
-    expect(json.version).toBe("0.11.1");
+    expect(json.version).toBe("0.11.2");
   });
 
   it("allows bearer API preflight without credentialed CORS", async () => {
@@ -83,6 +83,7 @@ describe("xion assistant api", () => {
 
     expect(json.ok).toBe(true);
     expect(json.token).toBeTruthy();
+    expect(json.user.isAdmin).toBe(false);
     expect(json.session.id).toMatch(/^ses_/);
   });
 
@@ -149,6 +150,36 @@ describe("xion assistant api", () => {
     expect(json.action.status).toBe("pending_confirmation");
     expect(json.action.riskLevel).toBe("high");
     expect(json.audio.provider).toBe("mock");
+  });
+
+  it("persists assistant chat messages for the authenticated user", async () => {
+    const auth = await createAuthenticatedUser("chat-history-user");
+    const sent = await app.request(
+      "/api/assistant/message",
+      {
+        method: "POST",
+        body: JSON.stringify({ message: "Hola Xion", spokenResponse: false }),
+        headers: { "content-type": "application/json", authorization: auth.authorization }
+      },
+      env
+    );
+    expect(sent.status).toBe(200);
+
+    const history = await app.request("/api/assistant/messages?limit=10", { headers: { authorization: auth.authorization } }, env);
+    const json = (await history.json()) as any;
+
+    expect(json.ok).toBe(true);
+    expect(json.messages.map((item: any) => item.role)).toEqual(["user", "assistant"]);
+    expect(json.messages[0].content).toBe("Hola Xion");
+  });
+
+  it("blocks admin endpoints for non-admin users", async () => {
+    const auth = await createAuthenticatedUser("non-admin");
+    const res = await app.request("/api/admin/overview", { headers: { authorization: auth.authorization } }, env);
+    const json = (await res.json()) as any;
+
+    expect(res.status).toBe(403);
+    expect(json.error).toBe("admin_required");
   });
 
   it("resolves contact alias and preferred channel per user", async () => {

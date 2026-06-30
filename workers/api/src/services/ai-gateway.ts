@@ -59,14 +59,14 @@ export class GoogleGeminiGateway implements AiGateway {
   private async generate(prompt: string, options?: { json?: boolean; small?: boolean }) {
     if (!this.config.apiKey) throw new Error("google_ai_api_key_required");
     const model = options?.small ? (this.config.smallModel ?? this.model) : this.model;
-    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
       method: "POST",
       headers: { "content-type": "application/json", "x-goog-api-key": this.config.apiKey },
       body: JSON.stringify({
-        model,
-        input: prompt,
-        generation_config: {
-          temperature: options?.json ? 0.1 : 0.7
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: options?.json ? 0.1 : 0.7,
+          ...(options?.json ? { responseMimeType: "application/json" } : {})
         }
       })
     });

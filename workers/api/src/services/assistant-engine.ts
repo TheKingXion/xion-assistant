@@ -56,6 +56,19 @@ export const handleAssistantMessage = async (
       apiKey: input.voice?.apiKey,
       model: input.voice?.model
     });
+  const safeSpeak = async (text: string) => {
+    if (!input.spokenResponse) return null;
+    try {
+      return await speak(text);
+    } catch {
+      return null;
+    }
+  };
+  await repository.createAssistantMessage({
+    userId: input.userId,
+    role: "user",
+    content: input.message
+  });
 
   const routed = await routeCommand(repository, {
     userId: input.userId,
@@ -63,11 +76,14 @@ export const handleAssistantMessage = async (
     ...(input.timezone ? { timezone: input.timezone } : {})
   });
   if (routed.kind === "resolved") {
+    await repository.createAssistantMessage({
+      userId: input.userId,
+      role: "assistant",
+      content: routed.result.response
+    });
     return {
       ...routed.result,
-      audio: input.spokenResponse
-        ? await speak(routed.result.response)
-        : null
+      audio: await safeSpeak(routed.result.response)
     };
   }
 
@@ -82,10 +98,16 @@ export const handleAssistantMessage = async (
     });
     const fallbackMemory = prepared ? undefined : await repository.resolveMemory(input.userId, aliasIntent.alias);
     if (!prepared && !fallbackMemory) {
+      const response = "No se quien es tu esposa todavia. Indica contacto y preguntare si debo recordarlo.";
+      await repository.createAssistantMessage({
+        userId: input.userId,
+        role: "assistant",
+        content: response
+      });
       return {
         ok: true,
         status: "needs_clarification",
-        response: "No se quien es tu esposa todavia. Indica contacto y preguntare si debo recordarlo.",
+        response,
         plan: null,
         audio: null
       };
@@ -100,6 +122,11 @@ export const handleAssistantMessage = async (
       riskLevel
     });
     const response = `Le enviare a ${recipient} por ${channel}: "${aliasIntent.message}". Confirmas envio?`;
+    await repository.createAssistantMessage({
+      userId: input.userId,
+      role: "assistant",
+      content: response
+    });
     const action = await repository.createAction({
       userId: input.userId,
       toolName: "communication.send_message",
@@ -167,9 +194,7 @@ export const handleAssistantMessage = async (
           requiresConfirmation: step.requiresConfirmation
         }))
       },
-      audio: input.spokenResponse
-        ? await speak(response)
-        : null
+      audio: await safeSpeak(response)
     };
   }
 
@@ -183,6 +208,11 @@ export const handleAssistantMessage = async (
     prompt: `Responde como Xion Assistant. Mensaje: ${input.message}`
   });
   const response = generated.text;
+  await repository.createAssistantMessage({
+    userId: input.userId,
+    role: "assistant",
+    content: response
+  });
   return {
     ok: true,
     status: "completed",
@@ -198,8 +228,6 @@ export const handleAssistantMessage = async (
         requiresConfirmation: step.requiresConfirmation
       }))
     },
-    audio: input.spokenResponse
-      ? await speak(response)
-      : null
+    audio: await safeSpeak(response)
   };
 };

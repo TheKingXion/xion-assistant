@@ -36,6 +36,10 @@ Planned. Login/register/recovery should use Turnstile before production.
 
 Every personal table has `user_id` where applicable. Tests cover memory and voice settings isolation.
 
+## Admin Route
+
+`/admin` is gated by `user.isAdmin` in the web app. Server admin endpoints also check `users.is_admin = 1`; non-admin users receive `403 admin_required`. To grant access, set the D1 `users.is_admin` column for the intended account.
+
 ## Logs
 
 Do not log full private messages, tokens or private audio.

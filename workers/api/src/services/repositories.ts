@@ -1,5 +1,6 @@
 import type {
   ActionConfirmationRecord,
+  AssistantMessageRecord,
   AssistantActionRecord,
   AssistantPlanRecord,
   AssistantPlanStepRecord,
@@ -24,8 +25,11 @@ import { createId } from "../utils/id";
 export type Repository = {
   createUser(input: { email: string; displayName: string; passwordHash?: string }): Promise<UserRecord>;
   findUserByEmail(email: string): Promise<UserRecord | undefined>;
+  findUserById(userId: string): Promise<UserRecord | undefined>;
   createSession(input: { userId: string; tokenHash: string; deviceId?: string; expiresAt: string }): Promise<SessionRecord>;
   findActiveSessionByTokenHash(tokenHash: string): Promise<SessionRecord | undefined>;
+  createAssistantMessage(input: Omit<AssistantMessageRecord, "id" | "createdAt">): Promise<AssistantMessageRecord>;
+  listAssistantMessages(userId: string, limit?: number): Promise<AssistantMessageRecord[]>;
   createContact(input: { userId: string; displayName: string; notes?: string }): Promise<ContactRecord>;
   listContactsForUser(userId: string): Promise<ContactRecord[]>;
   createContactAlias(input: { userId: string; contactId: string; alias: string; confirmed: boolean }): Promise<ContactAliasRecord>;
@@ -88,6 +92,7 @@ export class InMemoryRepository implements Repository {
   private commandLearning = new Map<string, CommandLearningRecord>();
   private userSettings = new Map<string, string>();
   private reminders = new Map<string, ReminderRecord>();
+  private messages = new Map<string, AssistantMessageRecord>();
 
   async createUser(input: { email: string; displayName: string; passwordHash?: string }) {
     const existing = [...this.users.values()].find((user) => user.email === input.email);
@@ -96,6 +101,7 @@ export class InMemoryRepository implements Repository {
       id: createId("usr"),
       email: input.email,
       displayName: input.displayName,
+      isAdmin: false,
       createdAt: new Date().toISOString()
     };
     if (input.passwordHash) user.passwordHash = input.passwordHash;
@@ -105,6 +111,10 @@ export class InMemoryRepository implements Repository {
 
   async findUserByEmail(email: string) {
     return [...this.users.values()].find((user) => user.email === email);
+  }
+
+  async findUserById(userId: string) {
+    return this.users.get(userId);
   }
 
   async createSession(input: { userId: string; tokenHash: string; deviceId?: string; expiresAt: string }) {
@@ -124,6 +134,19 @@ export class InMemoryRepository implements Repository {
     return [...this.sessions.values()].find(
       (session) => session.tokenHash === tokenHash && new Date(session.expiresAt).getTime() > Date.now()
     );
+  }
+
+  async createAssistantMessage(input: Omit<AssistantMessageRecord, "id" | "createdAt">) {
+    const message: AssistantMessageRecord = { ...input, id: createId("msg"), createdAt: new Date().toISOString() };
+    this.messages.set(message.id, message);
+    return message;
+  }
+
+  async listAssistantMessages(userId: string, limit = 50) {
+    return [...this.messages.values()]
+      .filter((message) => message.userId === userId)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      .slice(-limit);
   }
 
   async createContact(input: { userId: string; displayName: string; notes?: string }) {
@@ -412,7 +435,8 @@ export class InMemoryRepository implements Repository {
   }
 }
 
-type DbUserRow = { id: string; email: string; display_name: string; password_hash: string | null; created_at: string };
+type DbUserRow = { id: string; email: string; display_name: string; is_admin?: number; password_hash: string | null; created_at: string };
+type DbAssistantMessageRow = { id: string; user_id: string; conversation_id: string | null; role: "user" | "assistant" | "system"; content: string; created_at: string };
 type DbContactRow = { id: string; user_id: string; display_name: string; notes: string | null; created_at: string; updated_at: string };
 type DbContactAliasRow = { id: string; user_id: string; contact_id: string; alias: string; confirmed: number; created_at: string };
 type DbContactChannelRow = { id: string; user_id: string; contact_id: string; channel: string; address: string; is_preferred: number; created_at: string };
@@ -438,6 +462,7 @@ export class D1Repository implements Repository {
       id: createId("usr"),
       email: input.email,
       displayName: input.displayName,
+      isAdmin: false,
       createdAt: new Date().toISOString()
     };
     if (input.passwordHash) user.passwordHash = input.passwordHash;
@@ -450,8 +475,16 @@ export class D1Repository implements Repository {
 
   async findUserByEmail(email: string) {
     const row = await this.db
-      .prepare(`SELECT id, email, display_name, password_hash, created_at FROM users WHERE email = ? LIMIT 1`)
+      .prepare(`SELECT id, email, display_name, is_admin, password_hash, created_at FROM users WHERE email = ? LIMIT 1`)
       .bind(email)
+      .first<DbUserRow>();
+    return row ? mapUser(row) : undefined;
+  }
+
+  async findUserById(userId: string) {
+    const row = await this.db
+      .prepare(`SELECT id, email, display_name, is_admin, password_hash, created_at FROM users WHERE id = ? LIMIT 1`)
+      .bind(userId)
       .first<DbUserRow>();
     return row ? mapUser(row) : undefined;
   }
@@ -478,6 +511,23 @@ export class D1Repository implements Repository {
       .bind(tokenHash, new Date().toISOString())
       .first<DbSessionRow>();
     return row ? mapSession(row) : undefined;
+  }
+
+  async createAssistantMessage(input: Omit<AssistantMessageRecord, "id" | "createdAt">) {
+    const message: AssistantMessageRecord = { ...input, id: createId("msg"), createdAt: new Date().toISOString() };
+    await this.db
+      .prepare(`INSERT INTO assistant_messages (id, user_id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?, ?)`)
+      .bind(message.id, message.userId, message.conversationId ?? null, message.role, message.content, message.createdAt)
+      .run();
+    return message;
+  }
+
+  async listAssistantMessages(userId: string, limit = 50) {
+    const result = await this.db
+      .prepare(`SELECT id, user_id, conversation_id, role, content, created_at FROM assistant_messages WHERE user_id = ? ORDER BY created_at DESC LIMIT ?`)
+      .bind(userId, limit)
+      .all<DbAssistantMessageRow>();
+    return result.results.map(mapAssistantMessage).reverse();
   }
 
   async createContact(input: { userId: string; displayName: string; notes?: string }) {
@@ -877,9 +927,21 @@ const memoryRepository = new InMemoryRepository();
 export const createRepository = (db?: D1Database): Repository => (db ? new D1Repository(db) : memoryRepository);
 
 const mapUser = (row: DbUserRow): UserRecord => {
-  const user: UserRecord = { id: row.id, email: row.email, displayName: row.display_name, createdAt: row.created_at };
+  const user: UserRecord = { id: row.id, email: row.email, displayName: row.display_name, isAdmin: row.is_admin === 1, createdAt: row.created_at };
   if (row.password_hash) user.passwordHash = row.password_hash;
   return user;
+};
+
+const mapAssistantMessage = (row: DbAssistantMessageRow): AssistantMessageRecord => {
+  const message: AssistantMessageRecord = {
+    id: row.id,
+    userId: row.user_id,
+    role: row.role,
+    content: row.content,
+    createdAt: row.created_at
+  };
+  if (row.conversation_id) message.conversationId = row.conversation_id;
+  return message;
 };
 
 const mapSession = (row: DbSessionRow): SessionRecord => {

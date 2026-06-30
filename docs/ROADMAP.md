@@ -158,6 +158,16 @@
 - Google callback creates or finds the user, creates a Xion session, and stores Google tokens encrypted server-side.
 - Documented separate Google callbacks for login/register and app connectors.
 
+## v0.11.2
+
+- Fixed Gemini text/TTS gateway to use `models/{model}:generateContent`.
+- Assistant message route now returns JSON errors instead of raw Worker 500s.
+- TTS failures no longer block text replies.
+- Assistant chat persists messages in D1 `assistant_messages`.
+- Added `users.is_admin` migration and `/admin` protected dashboard route.
+- Public web root now shows chat/account only.
+- Added light/dark theme toggle.
+
 ## v0.2.0
 
 - Google OAuth.

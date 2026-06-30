@@ -53,7 +53,7 @@ app.get("/api/health", (c) =>
   c.json({
     ok: true,
     name: "xion-assistant-api",
-    version: "0.11.1",
+    version: "0.11.2",
     routes: {
       web: c.env.PUBLIC_WEB_URL,
       api: c.env.PUBLIC_API_URL
@@ -79,6 +79,13 @@ const redirectToWebAuth = (webUrl: string, key: "auth" | "auth_error", value: un
   return url.toString();
 };
 
+const publicUser = (user: { id: string; email: string; displayName: string; isAdmin: boolean }) => ({
+  id: user.id,
+  email: user.email,
+  displayName: user.displayName,
+  isAdmin: user.isAdmin
+});
+
 app.post("/api/auth/register", zValidator("json", authSchema), async (c) => {
   const body = c.req.valid("json");
   const repository = createRepository(c.env.DB);
@@ -95,7 +102,7 @@ app.post("/api/auth/register", zValidator("json", authSchema), async (c) => {
   const session = await repository.createSession({ userId: user.id, tokenHash, expiresAt });
   return c.json({
     ok: true,
-    user: { id: user.id, email: user.email, displayName: user.displayName },
+    user: publicUser(user),
     token,
     session: { id: session.id, expiresAt: session.expiresAt }
   });
@@ -114,10 +121,17 @@ app.post("/api/auth/login", zValidator("json", authSchema.omit({ displayName: tr
   const session = await repository.createSession({ userId: user.id, tokenHash, expiresAt });
   return c.json({
     ok: true,
-    user: { id: user.id, email: user.email, displayName: user.displayName },
+    user: publicUser(user),
     token,
     session: { id: session.id, expiresAt: session.expiresAt }
   });
+});
+
+app.use("/api/auth/me", requireAuth);
+app.get("/api/auth/me", async (c) => {
+  const user = await createRepository(c.env.DB).findUserById(c.get("userId"));
+  if (!user) return c.json({ ok: false, error: "user_not_found" }, 404);
+  return c.json({ ok: true, user: publicUser(user) });
 });
 
 app.get("/api/auth/google/start", (c) =>
@@ -181,7 +195,7 @@ app.get("/api/auth/google/callback", async (c) => {
     return c.redirect(
       redirectToWebAuth(c.env.PUBLIC_WEB_URL, "auth", {
         token,
-        user: { id: user.id, email: user.email, displayName: user.displayName },
+        user: publicUser(user),
         session: { id: session.id, expiresAt: session.expiresAt }
       }),
       302
@@ -669,7 +683,27 @@ app.post("/api/assistant/message", zValidator("json", assistantRequestSchema), a
     voice: voiceConfigFromEnv(c.env),
     ...(body.timezone ? { timezone: body.timezone } : {})
   };
-  return c.json(await handleAssistantMessage(repository, aiGateway, input));
+  try {
+    return c.json(await handleAssistantMessage(repository, aiGateway, input));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "assistant_message_failed";
+    return c.json({ ok: false, error: message, status: "failed", response: "No pude responder ahora. Revisa configuracion IA/TTS del Worker." }, 502);
+  }
+});
+
+app.use("/api/assistant/messages", requireAuth);
+app.get("/api/assistant/messages", async (c) => {
+  const limit = Number(c.req.query("limit") ?? "50");
+  const messages = await createRepository(c.env.DB).listAssistantMessages(c.get("userId"), Number.isFinite(limit) ? limit : 50);
+  return c.json({ ok: true, messages });
+});
+
+app.use("/api/admin/*", requireAuth);
+app.get("/api/admin/overview", async (c) => {
+  const repository = createRepository(c.env.DB);
+  const user = await repository.findUserById(c.get("userId"));
+  if (!user?.isAdmin) return c.json({ ok: false, error: "admin_required" }, 403);
+  return c.json({ ok: true, user: publicUser(user), message: "admin_access_granted" });
 });
 
 app.use("/api/commands", requireAuth);

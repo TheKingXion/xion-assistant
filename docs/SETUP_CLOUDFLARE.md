@@ -48,6 +48,7 @@ En GitHub:
 workers/api/wrangler.toml
 workers/api/migrations/0001_initial.sql
 workers/api/migrations/0002_command_registry.sql
+workers/api/migrations/0003_admin_and_sessions.sql
 apps/web
 ```
 
@@ -109,8 +110,38 @@ En `dash.cloudflare.com`:
 10. Copiar contenido completo.
 11. Pegarlo en consola D1.
 12. Click `Execute`.
+13. En GitHub, abrir `workers/api/migrations/0003_admin_and_sessions.sql`.
+14. Copiar contenido completo.
+15. Pegarlo en consola D1.
+16. Click `Execute`.
 
 Si Cloudflare muestra error de tabla ya existente, revisar si migration ya fue aplicada antes. No repetir migrations sin leer el error.
+
+## 3.1 Dar acceso admin a tu usuario
+
+Despues de entrar una vez con Google o email, tu usuario existe en D1.
+
+En Cloudflare:
+
+1. Ir a `Storage & Databases`.
+2. Abrir `D1 SQL Database`.
+3. Abrir `xion-assistant`.
+4. Abrir tab `Console`.
+5. Ejecutar:
+
+```sql
+UPDATE users
+SET is_admin = 1
+WHERE email = 'TU_EMAIL@gmail.com';
+```
+
+6. Cerrar sesion en la web.
+7. Entrar de nuevo.
+8. Abrir:
+
+```text
+https://assistant.xion.<TU_DOMINIO>/admin
+```
 
 ## 4. Crear R2
 
@@ -606,7 +637,7 @@ Si web abre pero no conecta a API, revisar:
 - `keep_vars = true` existe en `wrangler.toml`.
 - D1 `xion-assistant` creado.
 - `database_id` real puesto en GitHub.
-- Migrations `0001_initial.sql` y `0002_command_registry.sql` aplicadas desde D1 Console.
+- Migrations `0001_initial.sql`, `0002_command_registry.sql` y `0003_admin_and_sessions.sql` aplicadas desde D1 Console.
 - R2 `xion-assistant-releases` creado y privado.
 - Worker `xion-assistant-api` creado.
 - Worker conectado a GitHub con root `workers/api`.
